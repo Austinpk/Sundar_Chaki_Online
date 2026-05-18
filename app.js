@@ -1,11 +1,4 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase Configuration Array Mapping
 const firebaseConfig = {
   apiKey: "AIzaSyCM8xeCYILdA5kUAE6_kZuEkyN_1L3YGII",
   authDomain: "sundarchaki-1a6f6.firebaseapp.com",
@@ -16,324 +9,521 @@ const firebaseConfig = {
   measurementId: "G-W777E1W47S"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Start Global Engines
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 
-// State & DOM
-const state = {
-  isAuth: false,
-  isAdmin: false,
-  user: null,
-  transactions: [],
-  activeTab: 'home',
-  activeRange: 'daily',
-  activeMode: 'cash'
+// Local Memory State Stores
+let currentUser = null;
+let currentProfileRole = 'user';
+let isHardcodedAdmin = false;
+let globalAdminHardcodedPassword = "N@veed_admin123";
+let transactions = [];
+let activeMode = 'hybrid';
+let activeRange = 'daily';
+
+// Cache UI Elements
+const views = {
+  auth: document.getElementById('auth-view'),
+  pending: document.getElementById('pending-view'),
+  app: document.getElementById('app-view'),
+  nav: document.getElementById('bottom-nav')
 };
 
-const els = {
-  authView: document.getElementById('auth-view'),
-  pendingView: document.getElementById('pending-view'),
-  mainApp: document.getElementById('main-app'),
-  bottomNav: document.getElementById('bottom-nav'),
-  tabs: document.querySelectorAll('[id^="tab-"]'),
-  navBtns: document.querySelectorAll('.nav-btn'),
-  showLogin: document.getElementById('show-login'),
-  showRegister: document.getElementById('show-register'),
-  loginForm: document.getElementById('login-form'),
-  registerForm: document.getElementById('register-form'),
-  pendingUsers: document.getElementById('pending-users-list'),
-  profitCard: document.getElementById('profit-card')
+const forms = {
+  login: document.getElementById('login-form'),
+  signup: document.getElementById('signup-form'),
+  profileUpdate: document.getElementById('profile-update-form')
 };
 
-// --- UI TOGGLES ---
-function switchAuthView(type) {
-  if (type === 'login') {
-    els.loginForm.classList.remove('hidden');
-    els.registerForm.classList.add('hidden');
-    els.showLogin.classList.replace('text-gray-600', 'text-white');
-    els.showLogin.classList.replace('bg-transparent', 'bg-green-600');
-    els.showRegister.classList.replace('text-white', 'text-gray-600');
-    els.showRegister.classList.replace('bg-green-600', 'bg-transparent');
+// UI Panel Switch Router
+function switchView(target) {
+  Object.keys(views).forEach(key => views[key].classList.add('hidden'));
+  if (target === 'app') {
+    views.app.classList.remove('hidden');
+    views.nav.classList.remove('hidden');
   } else {
-    els.loginForm.classList.add('hidden');
-    els.registerForm.classList.remove('hidden');
-    els.showRegister.classList.replace('text-gray-600', 'text-white');
-    els.showRegister.classList.replace('bg-transparent', 'bg-green-600');
-    els.showLogin.classList.replace('text-white', 'text-gray-600');
-    els.showLogin.classList.replace('bg-green-600', 'bg-transparent');
+    views[target].classList.remove('hidden');
   }
 }
-els.showLogin.addEventListener('click', () => switchAuthView('login'));
-els.showRegister.addEventListener('click', () => switchAuthView('register'));
 
-function setTab(tab) {
-  state.activeTab = tab;
-  els.tabs.forEach(t => t.classList.add('hidden'));
-  document.getElementById(`tab-${tab}`).classList.remove('hidden');
-  els.navBtns.forEach(b => {
-    b.classList.remove('text-green-600', 'bg-green-50');
-    b.classList.add('text-gray-400');
-  });
-  const activeBtn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
-  if(activeBtn) {
-    activeBtn.classList.add('text-green-600');
-    activeBtn.classList.remove('text-gray-400');
-  }
-}
-els.navBtns.forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
-
-// --- SHEET API WRAPPER ---
-async function callSheets(action, payload) {
-  const res = await fetch('/api/sheets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, payload })
-  });
-  return await res.json();
-}
-
-// --- AUTH FLOW ---
-document.getElementById('forgot-pass').addEventListener('click', async () => {
-  const email = prompt("Enter your registered email:");
-  if (!email) return;
-  try {
-    await auth.sendPasswordResetEmail(email);
-    alert("Password reset link sent to your email. Check spam if needed.");
-  } catch (e) { alert("Error: " + e.message); }
+// Toggle Auth Screen Subpanels 
+document.getElementById('btn-goto-login').addEventListener('click', (e) => {
+  toggleAuthTab(e.target, forms.login, forms.signup);
+});
+document.getElementById('btn-goto-signup').addEventListener('click', (e) => {
+  toggleAuthTab(e.target, forms.signup, forms.login);
 });
 
-els.loginForm.addEventListener('submit', async (e) => {
+function toggleAuthTab(activeBtn, formToShow, formToHide) {
+  document.getElementById('btn-goto-login').className = 'flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 transition-all';
+  document.getElementById('btn-goto-signup').className = 'flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 transition-all';
+  activeBtn.className = 'flex-1 py-2 rounded-lg text-sm font-bold bg-white text-green-700 shadow-sm transition-all';
+  formToShow.classList.remove('hidden');
+  formToHide.classList.add('hidden');
+}
+
+// Handle Dynamic Dropdown Toggles for Input Fields
+document.getElementById('entry-type').addEventListener('change', (e) => {
+  if (e.target.value === 'sale') {
+    document.getElementById('form-sale-group').classList.remove('hidden');
+    document.getElementById('form-expense-group').classList.add('hidden');
+  } else {
+    document.getElementById('form-sale-group').classList.add('hidden');
+    document.getElementById('form-expense-group').classList.remove('hidden');
+  }
+});
+
+/* ========================================================
+   AUTHENTICATION LOGIC STREAM: SIGNIN & SIGNUP PIPELINES
+   ======================================================== */
+
+// Handle Isolated Sign In Processing Block
+forms.login.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const loader = els.loginForm.querySelector('.loader');
-  loader.style.display = 'block';
-  
-  const username = document.getElementById('login-user').value.trim();
+  const identity = document.getElementById('login-identity').value.trim();
   const pass = document.getElementById('login-pass').value;
 
-  // 1. HARDCODED ADMIN BYPASS
-  if (username.toLowerCase() === 'admin') {
-    // Check persisted password first
-    const sheetRes = await callSheets('getAdminPass', {});
-    const storedPass = sheetRes.password;
-    const validPass = storedPass || 'N@veed_admin123';
-    
-    if (pass === validPass) {
-      state.isAdmin = true;
-      document.getElementById('user-display-name').textContent = 'Admin Sundar';
-      document.getElementById('user-display-role').textContent = 'Super Admin';
-      document.getElementById('nav-admin').classList.remove('hidden');
-      loadApp();
-    } else {
-      alert("Invalid Admin Password");
-    }
-  } else {
-    // 2. FIREBASE USER LOGIN
+  // INTERCEPT CLAUSE: Check local credential constraints for super user overrides
+  if (identity === "Admin") {
+    // Attempt verification matching against current system store parameters
+    let matched = false;
     try {
-      await auth.signInWithEmailAndPassword(username, pass);
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getAdminPassword', payload: { fallback: globalAdminHardcodedPassword } })
+      });
+      const data = await res.json();
+      if (data.password && pass === data.password) matched = true;
     } catch (err) {
-      alert(err.message);
-      loader.style.display = 'none';
+      if (pass === globalAdminHardcodedPassword) matched = true;
+    }
+
+    if (matched) {
+      isHardcodedAdmin = true;
+      currentProfileRole = 'admin';
+      currentUser = { email: 'admin@system.local', uid: 'SYSTEM_SUPER_ADMIN_OVERRIDE' };
+      
+      document.getElementById('user-avatar-top').src = "https://cdn-icons-png.flaticon.com/512/2206/2206368.png";
+      document.getElementById('user-display-role').textContent = "🛡️ Super Admin";
+      document.getElementById('super-admin-panel').classList.remove('hidden');
+      
+      switchView('app');
+      await syncDataPipeline();
+      return;
+    } else {
+      alert("Invalid custom system administrator credentials.");
       return;
     }
   }
-});
 
-els.registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const loader = els.registerForm.querySelector('.loader');
-  loader.style.display = 'block';
-
-  const email = document.getElementById('reg-email').value.trim();
-  const pass = document.getElementById('reg-pass').value;
-  const phone = document.getElementById('reg-phone').value.trim();
-  const dp = document.getElementById('reg-dp').value || '';
-  const name = document.getElementById('reg-name').value.trim();
-
+  // Fallback Pipeline: Route verification steps securely via Firebase Core Architecture API
   try {
-    const cred = await auth.createUserWithEmailAndPassword(email, pass);
-    await callSheets('registerUser', { email, uid: cred.user.uid, phone, dp, name });
-    els.authView.classList.add('hidden');
-    els.pendingView.classList.remove('hidden');
+    const userCredential = await auth.signInWithEmailAndPassword(identity, pass);
+    currentUser = userCredential.user;
+    await executeSecurityStatusAudit();
   } catch (err) {
-    alert(err.message);
-  } finally { loader.style.display = 'none'; }
-});
-
-// Firebase State Listener
-auth.onAuthStateChanged(async (user) => {
-  if (!user) return;
-  state.user = user;
-  const statusData = await callSheets('getUserStatus', { email: user.email });
-  
-  if (statusData.status === 'active') {
-    state.isAdmin = statusData.role === 'admin';
-    document.getElementById('user-display-name').textContent = statusData.name || 'User';
-    document.getElementById('user-display-role').textContent = statusData.role === 'admin' ? 'Admin' : 'Worker';
-    document.getElementById('nav-admin').style.display = state.isAdmin ? 'flex' : 'none';
-    document.getElementById('prof-dp').value = statusData.dp || '';
-    document.getElementById('prof-phone').value = statusData.phone || '';
-    loadApp();
-  } else {
-    state.isAuth = false;
-    els.authView.classList.add('hidden');
-    els.pendingView.classList.remove('hidden');
+    alert(`Authentication Fault: ${err.message}`);
   }
 });
 
-document.getElementById('back-to-login').addEventListener('click', () => {
-  els.pendingView.classList.add('hidden');
-  els.authView.classList.remove('hidden');
-  switchAuthView('login');
+// Handle Isolated Registration Pipeline Processing Block
+forms.signup.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const whatsapp = document.getElementById('signup-whatsapp').value.trim();
+  const pass = document.getElementById('signup-pass').value;
+  const dp = document.getElementById('signup-dp').value.trim();
+
+  try {
+    // Generate Core identity references using global security providers
+    const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+    const uid = userCredential.user.uid;
+
+    // Disperse profile tracking definitions directly toward Google Sheets microservices
+    const response = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'addUser',
+        payload: { name, email, whatsapp, dp, uid }
+      })
+    });
+    
+    const output = await response.json();
+    if (output.success) {
+      alert("Registration request logged successfully!");
+      switchView('pending');
+    }
+  } catch (err) {
+    alert(`Registration Failure Pipeline Intercept: ${err.message}`);
+  }
 });
 
-function loadApp() {
-  state.isAuth = true;
-  els.authView.classList.add('hidden');
-  els.pendingView.classList.add('hidden');
-  els.mainApp.classList.remove('hidden');
-  els.bottomNav.classList.remove('hidden');
-  setTab('home');
-  document.getElementById('entry-date').valueAsDate = new Date();
-  
-  // Load Transactions
-  callSheets('getTransactions', { uid: state.isAdmin ? 'all' : state.user?.uid })
-    .then(res => { state.transactions = res.data || []; calculateProfit(); })
-    .catch(() => {});
+// Audit Access Permission Schemes
+async function executeSecurityStatusAudit() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'checkUser', payload: { email: currentUser.email } })
+    });
+    const data = await res.json();
+    
+    if (!data.status || data.status === 'pending') {
+      switchView('pending');
+      return;
+    }
 
-  // Admin: Load Pending Users
-  if (state.isAdmin) loadPendingUsers();
+    currentProfileRole = data.role || 'user';
+    document.getElementById('user-avatar-top').src = data.dp || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+    document.getElementById('user-display-role').textContent = currentProfileRole === 'admin' ? "🛡️ System Admin" : "Staff Account";
+
+    if (currentProfileRole === 'admin') {
+      document.getElementById('super-admin-panel').classList.remove('hidden');
+    } else {
+      document.getElementById('super-admin-panel').classList.add('hidden');
+    }
+
+    switchView('app');
+    await syncDataPipeline();
+  } catch (err) {
+    alert(`Security Matrix Loop Fault: ${err.message}`);
+  }
 }
 
-// --- ENTRY LOGIC ---
-document.querySelectorAll('.entry-type').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.entry-type').forEach(b => {
-      b.classList.remove('bg-white', 'text-green-700', 'shadow-sm');
-      b.classList.add('text-gray-500');
-    });
-    btn.classList.add('bg-white', 'text-green-700', 'shadow-sm');
-    btn.classList.remove('text-gray-500');
-    
-    const isExp = btn.dataset.type === 'expense';
-    document.getElementById('expense-fields').style.display = isExp ? 'block' : 'none';
-  });
+// Handle System Logout Requests
+document.getElementById('btn-app-logout').addEventListener('click', async () => {
+  if (!isHardcodedAdmin) {
+    await auth.signOut();
+  }
+  isHardcodedAdmin = false;
+  currentUser = null;
+  transactions = [];
+  forms.login.reset();
+  forms.signup.reset();
+  switchView('auth');
 });
 
-document.getElementById('save-entry').addEventListener('click', async () => {
-  const type = document.querySelector('.entry-type.bg-white').dataset.type;
-  const payload = {
-    id: Date.now().toString(36) + Math.random().toString(36).substr(2,4),
-    uid: state.user?.uid || 'admin-session',
-    type,
-    date: document.getElementById('entry-date').value,
-    cash: parseFloat(document.getElementById('entry-cash').value) || 0,
-    flour: parseFloat(document.getElementById('entry-flour').value) || 0,
-    rate: parseFloat(document.getElementById('entry-rate').value) || 0,
-    expName: type === 'expense' ? document.getElementById('entry-exp-name').value : '',
-    expAmt: type === 'expense' ? (parseFloat(document.getElementById('entry-exp-amt').value) || 0) : 0
+/* ========================================================
+   PROFILE AND PASSWORD CREDENTIAL UPDATING SYSTEMS
+   ======================================================== */
+forms.profileUpdate.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const newPassword = document.getElementById('profile-new-pass').value;
+  if (!newPassword || newPassword.length < 6) {
+    alert("Password metrics validation fault. Must exceed 5 characters.");
+    return;
+  }
+
+  try {
+    if (isHardcodedAdmin) {
+      // Overwrite parameter cells inside settings database blocks mapping admin allocations
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'updateAdminPassword', payload: { newPassword } })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Super User structural master password changed securely inside spreadsheet matrices.");
+        forms.profileUpdate.reset();
+      }
+    } else {
+      // Leverage standard Firebase APIs for updating regular user profile passwords
+      await auth.currentUser.updatePassword(newPassword);
+      alert("Worker security profile password updated across Firebase verification frameworks successfully.");
+      forms.profileUpdate.reset();
+    }
+  } catch (err) {
+    alert(`Credential Update Block Exception: ${err.message}`);
+  }
+});
+
+/* ========================================================
+   DATA PIPELINES & RECALCULATION ANALYTICS LOOPS
+   ======================================================== */
+
+// Post Record Transactions Into Sheet Cells
+document.getElementById('submit-entry').addEventListener('click', async () => {
+  const type = document.getElementById('entry-type').value;
+  const rate = parseFloat(document.getElementById('entry-rate').value) || 0;
+  
+  let payloadData = {
+    uid: currentUser.uid,
+    type: type,
+    rate: rate,
+    cash: 0,
+    flour: 0,
+    expName: '',
+    expAmt: 0
   };
-  await callSheets('addTransaction', payload);
-  alert('Entry Saved!');
-  // Reset inputs but keep date
-  document.querySelectorAll('#tab-entry input:not([type="date"])').forEach(i => i.value = '');
-  loadApp();
+
+  if (type === 'sale') {
+    payloadData.cash = parseFloat(document.getElementById('entry-cash').value) || 0;
+    payloadData.flour = parseFloat(document.getElementById('entry-flour').value) || 0;
+    if (payloadData.cash <= 0 && payloadData.flour <= 0) {
+      alert("Invalid numeric value mapping definitions.");
+      return;
+    }
+  } else {
+    payloadData.expName = document.getElementById('entry-name').value.trim();
+    payloadData.expAmt = parseFloat(document.getElementById('entry-amount').value) || 0;
+    if (!payloadData.expName || payloadData.expAmt <= 0) {
+      alert("Expense documentation inputs are empty or invalid.");
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addTransaction', payload: payloadData })
+    });
+    const status = await res.json();
+    if (status.success) {
+      alert("Transaction synchronized with the primary database.");
+      document.getElementById('entry-cash').value = '';
+      document.getElementById('entry-flour').value = '';
+      document.getElementById('entry-name').value = '';
+      document.getElementById('entry-amount').value = '';
+      await syncDataPipeline();
+    }
+  } catch (err) {
+    alert(`Data Synchronization Exception: ${err.message}`);
+  }
 });
 
-// --- REPORTS ENGINE ---
-document.querySelectorAll('.range-btn').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.range-btn').forEach(x => x.classList.replace('bg-green-600', 'bg-gray-100') || x.classList.replace('text-white', 'text-gray-600'));
-  b.classList.replace('bg-gray-100', 'bg-green-600');
-  b.classList.replace('text-gray-600', 'text-white');
-  state.activeRange = b.dataset.range;
-  calculateProfit();
-}));
+// Primary Sync Data Thread
+async function syncDataPipeline() {
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getTransactions' })
+    });
+    const out = await res.json();
+    transactions = out.data || [];
+    
+    executeEngineCalculations();
+    renderLogsUI();
 
-document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.mode-btn').forEach(x => { x.classList.replace('bg-green-100', 'bg-gray-50'); x.classList.replace('text-green-800', 'text-gray-500'); });
-  b.classList.replace('bg-gray-50', 'bg-green-100');
-  b.classList.replace('text-gray-500', 'text-green-800');
-  state.activeMode = b.dataset.mode;
-  calculateProfit();
-}));
+    if (currentProfileRole === 'admin') {
+      await syncPendingAdminUsersList();
+    }
+  } catch (err) {
+    console.error("Pipeline Sync Error: ", err);
+  }
+}
 
-function calculateProfit() {
-  const rate = parseFloat(document.getElementById('report-rate').value);
-  if (!rate || rate <= 0) { els.profitCard.innerHTML = '<span class="text-gray-400 text-sm">Enter valid daily rate</span>'; return; }
-
+// Global Profit Engine Calculation Block
+function executeEngineCalculations() {
+  const rateElement = document.getElementById('entry-rate');
+  const rate = parseFloat(rateElement ? rateElement.value : 130) || 130;
   const now = new Date();
-  const filtered = state.transactions.filter(t => {
+
+  // Filter dynamic timestamp entries matching mobile user toggles
+  const filtered = transactions.filter(t => {
     const d = new Date(t.date);
-    if (state.activeRange === 'daily') return d.toDateString() === now.toDateString();
-    if (state.activeRange === 'weekly') { const start = new Date(); start.setDate(now.getDate() - 7); return d >= start; }
+    if (activeRange === 'daily') return d.toDateString() === now.toDateString();
+    if (activeRange === 'weekly') {
+      const start = new Date();
+      start.setDate(now.getDate() - 7);
+      return d >= start;
+    }
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  const totalCash = filtered.reduce((s, t) => s + (t.cash || 0), 0);
-  const totalExp = filtered.reduce((s, t) => s + (t.expAmt || 0), 0);
-  const totalFlour = filtered.reduce((s, t) => s + (t.flour || 0), 0);
+  let totalCash = filtered.reduce((sum, t) => sum + (t.cash || 0), 0);
+  let totalExp = filtered.reduce((sum, t) => sum + (t.expAmt || 0), 0);
+  let totalFlour = filtered.reduce((sum, t) => sum + (t.flour || 0), 0);
 
-  const netCash = totalCash - totalExp;
-  // Prompt Formula: (Total Cash / Rate) - (Total Expenses / Rate)
-  const netFlourKg = (totalCash / rate) - (totalExp / rate);
+  // Profit logic engine calculations matching specifications
+  const netCashProfit = totalCash - totalExp;
+  const netFlourProfit = (totalCash / rate) - (totalExp / rate);
 
-  let html = '';
-  if (state.activeMode === 'cash') {
-    html = `<div class="text-center"><p class="text-xs text-gray-500">Net Cash Profit</p><p class="text-2xl font-bold text-green-700">PKR ${netCash.toFixed(2)}</p><p class="text-xs text-gray-400 mt-1">Flour Milled: ${totalFlour.toFixed(1)} KG</p></div>`;
-  } else if (state.activeMode === 'flour') {
-    html = `<div class="text-center"><p class="text-xs text-gray-500">Flour Equivalent</p><p class="text-2xl font-bold text-amber-600">${netFlourKg.toFixed(2)} KG</p></div>`;
+  let outputString = '';
+  if (activeMode === 'cash') {
+    outputString = `<span class="text-emerald-400">PKR ${netCashProfit.toLocaleString()}</span>`;
+  } else if (activeMode === 'flour') {
+    outputString = `<span class="text-amber-400">${netFlourProfit.toFixed(2)} KG</span>`;
   } else {
-    html = `<div class="flex flex-col gap-2"><div class="bg-white p-3 rounded-lg"><span class="text-xs text-gray-500 block">Cash Profit</span><span class="text-lg font-bold text-green-700">PKR ${netCash.toFixed(2)}</span></div><div class="bg-white p-3 rounded-lg"><span class="text-xs text-gray-500 block">Flour Equivalent</span><span class="text-lg font-bold text-amber-600">${netFlourKg.toFixed(2)} KG</span></div></div>`;
+    outputString = `<div class="text-lg flex flex-col gap-1 justify-center items-center">
+                     <div>💰 PKR ${netCashProfit.toLocaleString()}</div>
+                     <div class="text-xs text-slate-400">and</div>
+                     <div>🌾 ${netFlourProfit.toFixed(2)} KG Flour</div>
+                   </div>`;
   }
-  els.profitCard.innerHTML = html;
+
+  document.getElementById('profit-output').innerHTML = outputString;
 }
-document.getElementById('report-rate').addEventListener('input', calculateProfit);
 
-// --- PROFILE & ADMIN UPDATES ---
-document.getElementById('save-profile').addEventListener('click', async () => {
-  const newPass = document.getElementById('prof-new-pass').value;
-  const currPass = document.getElementById('prof-curr-pass').value;
-  const dp = document.getElementById('prof-dp').value;
-  const phone = document.getElementById('prof-phone').value;
-
-  if (newPass) {
-    try {
-      await auth.currentUser.updatePassword(newPass);
-      alert("Password updated successfully!");
-    } catch (e) { alert("Failed to update password. Ensure current password is correct and session is recent."); return; }
-  }
-  await callSheets('updateProfile', { email: state.user.email, dp, phone });
-  alert("Profile updated!");
+// Handle Configuration Metric Engine Click Events
+document.getElementById('engine-mode-select').addEventListener('change', (e) => {
+  activeMode = e.target.value;
+  executeEngineCalculations();
 });
 
-document.getElementById('save-admin-pass').addEventListener('click', async () => {
-  const newP = document.getElementById('admin-new-pass').value;
-  if (!newP) return alert("Enter new password");
-  await callSheets('updateAdminPass', { password: newP });
-  alert("Admin password updated in Settings sheet!");
-  document.getElementById('admin-new-pass').value = '';
+document.querySelectorAll('.range-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.range-toggle-btn').forEach(b => {
+      b.className = 'range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400';
+    });
+    e.target.className = 'range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all bg-white text-slate-900 shadow';
+    activeRange = e.target.getAttribute('data-range');
+    executeEngineCalculations();
+  });
 });
 
-async function loadPendingUsers() {
-  const res = await callSheets('getPendingUsers', {});
-  els.pendingUsers.innerHTML = '';
-  if (!res.users.length) { els.pendingUsers.innerHTML = '<p class="text-sm text-green-600 font-medium">All accounts active ✅</p>'; return; }
+// Render Historical Log Entries on Dashboard Rows
+function renderLogsUI() {
+  const container = document.getElementById('records-list-container');
+  container.innerHTML = '';
   
-  res.users.forEach(u => {
-    els.pendingUsers.insertAdjacentHTML('beforeend', `
-      <div class="flex justify-between items-center bg-gray-50 p-2 rounded border">
-        <div>
-          <p class="text-sm font-bold text-gray-800">${u.name}</p>
-          <p class="text-xs text-gray-500">${u.email} | ${u.phone}</p>
-        </div>
-        <button onclick="approveUser('${u.email}')" class="bg-green-600 text-white px-3 py-1 text-xs font-bold rounded shadow">Activate</button>
-      </div>
-    `);
+  if (transactions.length === 0) {
+    container.innerHTML = '<p class="text-center text-xs text-gray-400 py-6">No localized transactions logged yet.</p>';
+    return;
+  }
+
+  transactions.forEach(t => {
+    const card = document.createElement('div');
+    card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center text-xs";
+    
+    if (t.type === 'sale') {
+      card.innerHTML = `<div>
+                          <p class="font-black text-gray-800">📦 Cash Sale [Ref: ${t.id}]</p>
+                          <p class="text-gray-400 mt-0.5">${new Date(t.date).toLocaleDateString()}</p>
+                        </div>
+                        <div class="text-right">
+                          <p class="font-extrabold text-green-600">+Rs. ${t.cash}</p>
+                          <p class="text-[10px] text-gray-500 font-bold">${t.flour} KG Flour</p>
+                        </div>`;
+    } else {
+      card.innerHTML = `<div>
+                          <p class="font-black text-red-700">🛑 Expense: ${t.expName} [Ref: ${t.id}]</p>
+                          <p class="text-gray-400 mt-0.5">${new Date(t.date).toLocaleDateString()}</p>
+                        </div>
+                        <div class="text-right">
+                          <p class="font-extrabold text-red-600">-Rs. ${t.expAmt}</p>
+                        </div>`;
+    }
+    container.appendChild(card);
   });
 }
 
-window.approveUser = async (email) => {
-  await callSheets('approveUser', { email });
-  alert(`${email} activated!`);
-  loadPendingUsers();
+document.getElementById('btn-refresh-logs').addEventListener('click', syncDataPipeline);
+
+/* ========================================================
+   SUPER USER ACCESS SCHEMES: MANAGEMENT PROCEDURES
+   ======================================================== */
+
+// Handle Account Approval Row Layout Rendering
+async function syncPendingAdminUsersList() {
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getPendingUsers' })
+    });
+    const out = await res.json();
+    const container = document.getElementById('pending-users-list');
+    container.innerHTML = '';
+
+    const list = out.users || [];
+    if (list.length === 0) {
+      container.innerHTML = '<p class="text-[11px] text-gray-400 text-center py-2">No pending registration pipelines found.</p>';
+      return;
+    }
+
+    list.forEach(u => {
+      const row = document.createElement('div');
+      row.className = "bg-red-50/50 p-3 rounded-xl border border-red-100/50 flex justify-between items-center text-xs";
+      row.innerHTML = `<div>
+                         <p class="font-bold text-gray-800">${u.name || 'Staff'}</p>
+                         <p class="text-[10px] text-gray-500">${u.email}</p>
+                       </div>
+                       <button class="bg-green-600 text-white font-bold px-3 py-1 rounded-md text-[10px] uppercase tracking-wider shadow-sm" onclick="authorizeTargetStaffUser('${u.email}')">
+                         Authorize
+                       </button>`;
+      container.appendChild(row);
+    });
+  } catch (err) {
+    console.error("Approval list processing failure:", err);
+  }
+}
+
+// Global scope attachment for inline orchestration actions
+window.authorizeTargetStaffUser = async function(email) {
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'approveUser', payload: { email } })
+    });
+    const status = await res.json();
+    if (status.success) {
+      alert(`User profile [${email}] configuration metrics successfully flipped to active.`);
+      await syncPendingAdminUsersList();
+    }
+  } catch (err) {
+    alert(`Authorization transaction fault: ${err.message}`);
+  }
 };
+
+// Handle Hard Overwrites
+document.getElementById('edit-submit').addEventListener('click', async () => {
+  const id = document.getElementById('edit-id').value.trim();
+  const val = parseFloat(document.getElementById('edit-val').value) || 0;
+
+  if (!id) {
+    alert("Identifier reference query parameter required.");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateTransaction', payload: { id, val } })
+    });
+    const status = await res.json();
+    if (status.success) {
+      alert("Spreadsheet database cell value overwritten explicitly.");
+      document.getElementById('edit-id').value = '';
+      document.getElementById('edit-val').value = '';
+      await syncDataPipeline();
+    } else {
+      alert("Target ID transaction index bounds check failed.");
+    }
+  } catch (err) {
+    alert(`Cell execution bypass exception: ${err.message}`);
+  }
+});
+
+/* ========================================================
+   BOTTOM TAB SELECTION NAVIGATION EVENTS MAPPING
+   ======================================================== */
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const targetTab = e.currentTarget.getAttribute('data-tab');
+    
+    // Toggle active state classes
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      b.classList.remove('text-green-600');
+      b.classList.add('text-gray-400');
+    });
+    e.currentTarget.classList.remove('text-gray-400');
+    e.currentTarget.classList.add('text-green-600');
+
+    // Toggle active layout targets
+    Object.keys(tabs).forEach(k => tabs[k].classList.add('hidden'));
+    tabs[targetTab].classList.remove('hidden');
+  });
+});
+
+// Check status on document loads
+window.addEventListener('DOMContentLoaded', async () => {
+  auth.onAuthStateChanged(async (user) => {
+    if (user && !isHardcodedAdmin) {
+      currentUser = user;
+      await executeSecurityStatusAudit();
+    } else if (!isHardcodedAdmin) {
+      switchView('auth');
+    }
+  });
+});
