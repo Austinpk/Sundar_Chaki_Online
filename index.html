@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sundar Sehat Ata</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    .btn-press { transition: transform 0.1s; }
+    .btn-press:active { transform: scale(0.97); }
+    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #16a34a; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+
+  <!-- AUTH CONTAINER -->
+  <div id="auth-view" class="flex-1 flex flex-col justify-center px-5 relative">
+    <div class="text-center mb-6">
+      <div class="w-20 h-20 bg-green-100 rounded-2xl mx-auto flex items-center justify-center text-4xl mb-2">🌾</div>
+      <h1 class="text-2xl font-bold text-green-700">Sundar Sehat Ata</h1>
+      <p class="text-sm text-gray-500 mt-1">Wheat Grinding Management</p>
+    </div>
+
+    <!-- TOGGLE TABS -->
+    <div class="flex bg-white p-1 rounded-xl shadow-sm mb-5">
+      <button id="show-login" class="flex-1 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white transition">Login</button>
+      <button id="show-register" class="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 transition">Register</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <form id="login-form" class="space-y-3">
+      <input id="login-user" type="text" placeholder="Email or Admin Username" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <input id="login-pass" type="password" placeholder="Password" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <button type="submit" class="w-full p-4 bg-green-600 text-white font-bold rounded-xl shadow-md btn-press flex justify-center items-center gap-2">
+        <span>Sign In</span><div class="loader"></div>
+      </button>
+    </form>
+
+    <!-- REGISTER FORM -->
+    <form id="register-form" class="space-y-3 hidden">
+      <input id="reg-name" type="text" placeholder="Full Name" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <input id="reg-email" type="email" placeholder="Email Address" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <input id="reg-phone" type="tel" placeholder="WhatsApp Number (e.g., 923001234567)" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <input id="reg-pass" type="password" placeholder="Create Password" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
+      <input id="reg-dp" type="url" placeholder="Profile Picture URL (Optional)" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500">
+      <button type="submit" class="w-full p-4 bg-blue-600 text-white font-bold rounded-xl shadow-md btn-press flex justify-center items-center gap-2">
+        <span>Create Account</span><div class="loader"></div>
+      </button>
+    </form>
+
+    <div class="mt-4 text-center">
+      <a href="#" id="forgot-pass" class="text-xs text-green-700 font-medium hover:underline">Forgot Password?</a>
+    </div>
+  </div>
+
+  <!-- PENDING APPROVAL SCREEN -->
+  <div id="pending-view" class="hidden flex-1 flex flex-col justify-center items-center px-6 text-center bg-gray-50">
+    <div class="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center text-5xl mb-4">⏳</div>
+    <h2 class="text-xl font-bold mb-2 text-gray-800">Approval Pending</h2>
+    <p class="text-gray-500 mb-6 leading-relaxed">Your account is awaiting admin activation.<br>Please contact Sundar via WhatsApp to proceed.</p>
+    <a href="https://wa.me/923001234567?text=Hi%20Admin,%20I%20need%20approval%20for%20my%20Sundar%20Sehat%20Ata%20account" target="_blank" class="w-full max-w-xs p-4 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press flex justify-center items-center gap-2">
+      💬 Contact Admin
+    </a>
+    <button id="back-to-login" class="mt-6 text-gray-400 text-sm underline">Back to Login</button>
+  </div>
+
+  <!-- MAIN APPLICATION -->
+  <main id="main-app" class="hidden flex-1 overflow-y-auto pb-20 px-4 pt-4 bg-gray-50">
+    
+    <!-- HOME TAB -->
+    <section id="tab-home" class="space-y-4">
+      <div class="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-3">
+        <img id="nav-dp" src="https://ui-avatars.com/api/?name=SS" class="w-14 h-14 rounded-full border-2 border-green-500 object-cover">
+        <div>
+          <h2 class="font-bold text-lg" id="user-display-name">Worker</h2>
+          <p class="text-xs text-gray-500" id="user-display-role">Standard Account</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <a href="tel:+923001234567" class="bg-white p-4 rounded-xl shadow-sm flex flex-col items-center gap-2 btn-press active:scale-95">
+          <span class="text-2xl">📞</span><span class="text-xs font-semibold">Call Sundar</span>
+        </a>
+        <a href="https://wa.me/923001234567" target="_blank" class="bg-green-600 text-white p-4 rounded-xl shadow-sm flex flex-col items-center gap-2 btn-press active:scale-95">
+          <span class="text-2xl">💬</span><span class="text-xs font-semibold">WhatsApp</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ENTRY TAB -->
+    <section id="tab-entry" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm">
+        <h3 class="font-bold mb-3 text-green-700">Log Daily Record</h3>
+        <div class="flex bg-gray-100 p-1 rounded-lg mb-4">
+          <button class="entry-type flex-1 py-2 rounded-md text-xs font-bold bg-white text-green-700 shadow-sm transition" data-type="sale">💰 Sale</button>
+          <button class="entry-type flex-1 py-2 rounded-md text-xs font-bold text-gray-500 transition" data-type="expense">📦 Expense</button>
+        </div>
+        <input id="entry-date" type="date" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        <input id="entry-cash" type="number" placeholder="Cash Amount (PKR)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        <input id="entry-flour" type="number" placeholder="Flour Weight (KG)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        <input id="entry-rate" type="number" placeholder="Daily Market Rate (PKR/KG)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        <div id="expense-fields" class="hidden">
+          <input id="entry-exp-name" type="text" placeholder="Expense Category/Name" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+          <input id="entry-exp-amt" type="number" placeholder="Expense Cost (PKR)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        </div>
+        <button id="save-entry" class="w-full p-4 bg-green-600 text-white font-bold rounded-xl shadow-md btn-press">Save Record</button>
+      </div>
+    </section>
+
+    <!-- REPORTS TAB -->
+    <section id="tab-reports" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm">
+        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-bold" data-range="daily">Today</button>
+          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold" data-range="weekly">7 Days</button>
+          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold" data-range="monthly">30 Days</button>
+        </div>
+        <div class="flex gap-2 mb-4">
+          <button class="mode-btn flex-1 p-2 rounded-lg bg-green-100 text-green-800 text-xs font-bold border border-green-200" data-mode="cash">💵 Cash</button>
+          <button class="mode-btn flex-1 p-2 rounded-lg bg-gray-50 text-gray-500 text-xs font-bold border" data-mode="flour">🌾 Flour</button>
+          <button class="mode-btn flex-1 p-2 rounded-lg bg-gray-50 text-gray-500 text-xs font-bold border" data-mode="hybrid">🔀 Hybrid</button>
+        </div>
+        <div class="mb-3">
+          <label class="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Conversion Rate</label>
+          <input id="report-rate" type="number" placeholder="0.00" class="w-full p-3 mt-1 border border-gray-200 rounded-lg text-lg font-mono font-bold outline-none focus:ring-2 focus:ring-green-500">
+        </div>
+        <div id="profit-card" class="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center min-h-[80px] flex items-center justify-center">
+          <span class="text-gray-400 text-sm">Enter rate & select period</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFILE TAB -->
+    <section id="tab-profile" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm space-y-3">
+        <h3 class="font-bold text-gray-700 mb-2">Account Settings</h3>
+        <input id="prof-dp" type="url" placeholder="Update DP URL" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
+        <input id="prof-phone" type="tel" placeholder="Update WhatsApp" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
+        <hr class="border-gray-100">
+        <h4 class="text-xs font-bold text-gray-500 uppercase">Change Password</h4>
+        <input id="prof-curr-pass" type="password" placeholder="Current Password" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
+        <input id="prof-new-pass" type="password" placeholder="New Password" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
+        <button id="save-profile" class="w-full p-3 bg-gray-800 text-white font-bold rounded-xl btn-press">Update Profile</button>
+      </div>
+    </section>
+
+    <!-- ADMIN TAB -->
+    <section id="tab-admin" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm">
+        <h3 class="font-bold text-green-700 mb-3">🛡️ Admin Controls</h3>
+        <div id="admin-pass-section" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p class="text-xs font-bold text-amber-800 mb-2">Update Admin Password</p>
+          <input id="admin-new-pass" type="password" placeholder="New Password" class="w-full p-2 border border-gray-300 rounded text-sm mb-2">
+          <button id="save-admin-pass" class="w-full p-2 bg-amber-600 text-white text-xs font-bold rounded btn-press">Save to Settings</button>
+        </div>
+        <h4 class="font-bold text-xs text-gray-500 mb-2">Pending Approvals</h4>
+        <div id="pending-users-list" class="space-y-2 max-h-40 overflow-y-auto">
+          <p class="text-sm text-gray-400 italic">Checking...</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 hidden safe-bottom">
+    <div class="flex justify-around py-2">
+      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="home"><span class="text-lg">🏠</span><span class="text-[10px] font-medium">Home</span></button>
+      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="entry"><span class="text-lg">📝</span><span class="text-[10px] font-medium">Entry</span></button>
+      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="reports"><span class="text-lg">📊</span><span class="text-[10px] font-medium">Reports</span></button>
+      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="profile"><span class="text-lg">👤</span><span class="text-[10px] font-medium">Profile</span></button>
+      <button class="nav-btn flex flex-col items-center p-2 text-gray-400 hidden" id="nav-admin" data-tab="admin"><span class="text-lg">🛡️</span><span class="text-[10px] font-medium">Admin</span></button>
+    </div>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
