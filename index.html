@@ -5,177 +5,229 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sundar Sehat Ata</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', system-ui, sans-serif; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    .btn-press { transition: transform 0.1s; }
-    .btn-press:active { transform: scale(0.97); }
-    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #16a34a; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .ripple { position: relative; overflow: hidden; }
+    .ripple:active::after { content: ''; position: absolute; background: rgba(255,255,255,0.3); border-radius: 50%; transform: scale(0); animation: ripple 0.4s linear; pointer-events: none; }
+    @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden">
+  
+  <div id="auth-view" class="flex-1 flex flex-col justify-center p-6 bg-gradient-to-br from-green-800 to-emerald-600">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md mx-auto">
+      <div class="text-center mb-6">
+        <h1 class="text-3xl font-extrabold text-green-700 tracking-tight">Sundar Sehat Ata</h1>
+        <p class="text-gray-500 text-sm mt-1">Wheat Grinding Ledger Manager</p>
+      </div>
 
-  <!-- AUTH CONTAINER -->
-  <div id="auth-view" class="flex-1 flex flex-col justify-center px-5 relative">
-    <div class="text-center mb-6">
-      <div class="w-20 h-20 bg-green-100 rounded-2xl mx-auto flex items-center justify-center text-4xl mb-2">🌾</div>
-      <h1 class="text-2xl font-bold text-green-700">Sundar Sehat Ata</h1>
-      <p class="text-sm text-gray-500 mt-1">Wheat Grinding Management</p>
-    </div>
+      <div class="flex bg-gray-100 p-1 rounded-xl mb-6">
+        <button id="btn-goto-login" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white text-green-700 shadow-sm transition-all">Sign In</button>
+        <button id="btn-goto-signup" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:text-gray-700 transition-all">Register</button>
+      </div>
 
-    <!-- TOGGLE TABS -->
-    <div class="flex bg-white p-1 rounded-xl shadow-sm mb-5">
-      <button id="show-login" class="flex-1 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white transition">Login</button>
-      <button id="show-register" class="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 transition">Register</button>
-    </div>
-
-    <!-- LOGIN FORM -->
-    <form id="login-form" class="space-y-3">
-      <input id="login-user" type="text" placeholder="Email or Admin Username" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <input id="login-pass" type="password" placeholder="Password" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <button type="submit" class="w-full p-4 bg-green-600 text-white font-bold rounded-xl shadow-md btn-press flex justify-center items-center gap-2">
-        <span>Sign In</span><div class="loader"></div>
-      </button>
-    </form>
-
-    <!-- REGISTER FORM -->
-    <form id="register-form" class="space-y-3 hidden">
-      <input id="reg-name" type="text" placeholder="Full Name" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <input id="reg-email" type="email" placeholder="Email Address" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <input id="reg-phone" type="tel" placeholder="WhatsApp Number (e.g., 923001234567)" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <input id="reg-pass" type="password" placeholder="Create Password" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500" required>
-      <input id="reg-dp" type="url" placeholder="Profile Picture URL (Optional)" class="w-full p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500">
-      <button type="submit" class="w-full p-4 bg-blue-600 text-white font-bold rounded-xl shadow-md btn-press flex justify-center items-center gap-2">
-        <span>Create Account</span><div class="loader"></div>
-      </button>
-    </form>
-
-    <div class="mt-4 text-center">
-      <a href="#" id="forgot-pass" class="text-xs text-green-700 font-medium hover:underline">Forgot Password?</a>
-    </div>
-  </div>
-
-  <!-- PENDING APPROVAL SCREEN -->
-  <div id="pending-view" class="hidden flex-1 flex flex-col justify-center items-center px-6 text-center bg-gray-50">
-    <div class="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center text-5xl mb-4">⏳</div>
-    <h2 class="text-xl font-bold mb-2 text-gray-800">Approval Pending</h2>
-    <p class="text-gray-500 mb-6 leading-relaxed">Your account is awaiting admin activation.<br>Please contact Sundar via WhatsApp to proceed.</p>
-    <a href="https://wa.me/923001234567?text=Hi%20Admin,%20I%20need%20approval%20for%20my%20Sundar%20Sehat%20Ata%20account" target="_blank" class="w-full max-w-xs p-4 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press flex justify-center items-center gap-2">
-      💬 Contact Admin
-    </a>
-    <button id="back-to-login" class="mt-6 text-gray-400 text-sm underline">Back to Login</button>
-  </div>
-
-  <!-- MAIN APPLICATION -->
-  <main id="main-app" class="hidden flex-1 overflow-y-auto pb-20 px-4 pt-4 bg-gray-50">
-    
-    <!-- HOME TAB -->
-    <section id="tab-home" class="space-y-4">
-      <div class="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-3">
-        <img id="nav-dp" src="https://ui-avatars.com/api/?name=SS" class="w-14 h-14 rounded-full border-2 border-green-500 object-cover">
+      <form id="login-form" class="space-y-4">
         <div>
-          <h2 class="font-bold text-lg" id="user-display-name">Worker</h2>
-          <p class="text-xs text-gray-500" id="user-display-role">Standard Account</p>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Username or Email</label>
+          <input id="login-identity" type="text" placeholder="Enter Admin or Email" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <a href="tel:+923001234567" class="bg-white p-4 rounded-xl shadow-sm flex flex-col items-center gap-2 btn-press active:scale-95">
-          <span class="text-2xl">📞</span><span class="text-xs font-semibold">Call Sundar</span>
-        </a>
-        <a href="https://wa.me/923001234567" target="_blank" class="bg-green-600 text-white p-4 rounded-xl shadow-sm flex flex-col items-center gap-2 btn-press active:scale-95">
-          <span class="text-2xl">💬</span><span class="text-xs font-semibold">WhatsApp</span>
-        </a>
-      </div>
-    </section>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Password</label>
+          <input id="login-pass" type="password" placeholder="••••••••" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
+        </div>
+        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl font-bold transition-all shadow-md">Sign In</button>
+      </form>
 
-    <!-- ENTRY TAB -->
-    <section id="tab-entry" class="hidden space-y-4">
-      <div class="bg-white p-5 rounded-2xl shadow-sm">
-        <h3 class="font-bold mb-3 text-green-700">Log Daily Record</h3>
-        <div class="flex bg-gray-100 p-1 rounded-lg mb-4">
-          <button class="entry-type flex-1 py-2 rounded-md text-xs font-bold bg-white text-green-700 shadow-sm transition" data-type="sale">💰 Sale</button>
-          <button class="entry-type flex-1 py-2 rounded-md text-xs font-bold text-gray-500 transition" data-type="expense">📦 Expense</button>
+      <form id="signup-form" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Full Name</label>
+          <input id="signup-name" type="text" placeholder="Worker Name" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-        <input id="entry-date" type="date" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
-        <input id="entry-cash" type="number" placeholder="Cash Amount (PKR)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
-        <input id="entry-flour" type="number" placeholder="Flour Weight (KG)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
-        <input id="entry-rate" type="number" placeholder="Daily Market Rate (PKR/KG)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
-        <div id="expense-fields" class="hidden">
-          <input id="entry-exp-name" type="text" placeholder="Expense Category/Name" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
-          <input id="entry-exp-amt" type="number" placeholder="Expense Cost (PKR)" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-sm">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Email Address</label>
+          <input id="signup-email" type="email" placeholder="worker@email.com" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-        <button id="save-entry" class="w-full p-4 bg-green-600 text-white font-bold rounded-xl shadow-md btn-press">Save Record</button>
-      </div>
-    </section>
-
-    <!-- REPORTS TAB -->
-    <section id="tab-reports" class="hidden space-y-4">
-      <div class="bg-white p-5 rounded-2xl shadow-sm">
-        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
-          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-bold" data-range="daily">Today</button>
-          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold" data-range="weekly">7 Days</button>
-          <button class="range-btn flex-1 px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold" data-range="monthly">30 Days</button>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">WhatsApp Phone Number</label>
+          <input id="signup-whatsapp" type="text" placeholder="03001234567" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-        <div class="flex gap-2 mb-4">
-          <button class="mode-btn flex-1 p-2 rounded-lg bg-green-100 text-green-800 text-xs font-bold border border-green-200" data-mode="cash">💵 Cash</button>
-          <button class="mode-btn flex-1 p-2 rounded-lg bg-gray-50 text-gray-500 text-xs font-bold border" data-mode="flour">🌾 Flour</button>
-          <button class="mode-btn flex-1 p-2 rounded-lg bg-gray-50 text-gray-500 text-xs font-bold border" data-mode="hybrid">🔀 Hybrid</button>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Password</label>
+          <input id="signup-pass" type="password" placeholder="••••••••" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-        <div class="mb-3">
-          <label class="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Conversion Rate</label>
-          <input id="report-rate" type="number" placeholder="0.00" class="w-full p-3 mt-1 border border-gray-200 rounded-lg text-lg font-mono font-bold outline-none focus:ring-2 focus:ring-green-500">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Display Picture URL</label>
+          <input id="signup-dp" type="url" placeholder="https://image-link.com/pic.jpg" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500">
         </div>
-        <div id="profit-card" class="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center min-h-[80px] flex items-center justify-center">
-          <span class="text-gray-400 text-sm">Enter rate & select period</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- PROFILE TAB -->
-    <section id="tab-profile" class="hidden space-y-4">
-      <div class="bg-white p-5 rounded-2xl shadow-sm space-y-3">
-        <h3 class="font-bold text-gray-700 mb-2">Account Settings</h3>
-        <input id="prof-dp" type="url" placeholder="Update DP URL" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
-        <input id="prof-phone" type="tel" placeholder="Update WhatsApp" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
-        <hr class="border-gray-100">
-        <h4 class="text-xs font-bold text-gray-500 uppercase">Change Password</h4>
-        <input id="prof-curr-pass" type="password" placeholder="Current Password" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
-        <input id="prof-new-pass" type="password" placeholder="New Password" class="w-full p-3 border border-gray-200 rounded-xl text-sm">
-        <button id="save-profile" class="w-full p-3 bg-gray-800 text-white font-bold rounded-xl btn-press">Update Profile</button>
-      </div>
-    </section>
-
-    <!-- ADMIN TAB -->
-    <section id="tab-admin" class="hidden space-y-4">
-      <div class="bg-white p-5 rounded-2xl shadow-sm">
-        <h3 class="font-bold text-green-700 mb-3">🛡️ Admin Controls</h3>
-        <div id="admin-pass-section" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p class="text-xs font-bold text-amber-800 mb-2">Update Admin Password</p>
-          <input id="admin-new-pass" type="password" placeholder="New Password" class="w-full p-2 border border-gray-300 rounded text-sm mb-2">
-          <button id="save-admin-pass" class="w-full p-2 bg-amber-600 text-white text-xs font-bold rounded btn-press">Save to Settings</button>
-        </div>
-        <h4 class="font-bold text-xs text-gray-500 mb-2">Pending Approvals</h4>
-        <div id="pending-users-list" class="space-y-2 max-h-40 overflow-y-auto">
-          <p class="text-sm text-gray-400 italic">Checking...</p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- BOTTOM NAV -->
-  <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 hidden safe-bottom">
-    <div class="flex justify-around py-2">
-      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="home"><span class="text-lg">🏠</span><span class="text-[10px] font-medium">Home</span></button>
-      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="entry"><span class="text-lg">📝</span><span class="text-[10px] font-medium">Entry</span></button>
-      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="reports"><span class="text-lg">📊</span><span class="text-[10px] font-medium">Reports</span></button>
-      <button class="nav-btn flex flex-col items-center p-2 text-gray-400" data-tab="profile"><span class="text-lg">👤</span><span class="text-[10px] font-medium">Profile</span></button>
-      <button class="nav-btn flex flex-col items-center p-2 text-gray-400 hidden" id="nav-admin" data-tab="admin"><span class="text-lg">🛡️</span><span class="text-[10px] font-medium">Admin</span></button>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold transition-all shadow-md">Request Account Creation</button>
+      </form>
     </div>
-  </nav>
+  </div>
+
+  <div id="pending-view" class="flex-1 hidden flex-col justify-center items-center p-6 bg-gray-50">
+    <div class="text-center max-w-sm p-6 bg-white rounded-3xl shadow-xl">
+      <div class="text-6xl mb-4">⏳</div>
+      <h2 class="text-2xl font-black text-gray-800">Awaiting Approval</h2>
+      <p class="text-gray-500 mt-2 text-sm leading-relaxed">Your account has been successfully requested. An administrator must explicitly authorize your access before you can enter records.</p>
+      <a href="https://wa.me/923001234567?text=Assalam-o-Alaikum%20Admin,%20please%20approve%20my%20Sundar%20Sehat%20Ata%20account." class="mt-6 inline-flex items-center gap-2 bg-green-500 text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-green-600 transition-all">
+        Contact Admin via WhatsApp
+      </a>
+    </div>
+  </div>
+
+  <div id="app-view" class="flex-1 hidden flex-col overflow-hidden">
+    <header class="bg-green-700 text-white px-4 py-3 shadow-md flex justify-between items-center shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-white/20 border border-white/40 overflow-hidden shadow-sm">
+          <img id="user-avatar-top" src="" alt="Avatar" class="w-full h-full object-cover error-fallback">
+        </div>
+        <div>
+          <h2 id="top-bar-business-title" class="font-black tracking-wide text-sm leading-none">Sundar Sehat Ata</h2>
+          <span id="user-display-role" class="text-[10px] uppercase font-bold tracking-widest opacity-75">Staff Dashboard</span>
+        </div>
+      </div>
+      <button id="btn-app-logout" class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold border border-white/20 transition-all">Sign Out</button>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+      
+      <section id="tab-home" class="space-y-6">
+        <div class="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
+          <div class="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-green-500 to-emerald-400"></div>
+          <div class="w-24 h-24 bg-gray-200 rounded-full border-4 border-green-500/30 overflow-hidden shadow-md mb-3">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" alt="Sundar" class="w-full h-full object-cover">
+          </div>
+          <h3 class="text-2xl font-black text-gray-800">Sundar Naveed</h3>
+          <p class="text-green-600 font-bold text-xs uppercase tracking-widest mt-0.5">Shop Proprietor</p>
+          <p class="text-gray-500 text-sm max-w-xs mt-2 leading-relaxed">Pure wheat grinding processing and ledger records manager system infrastructure.</p>
+          <div class="flex gap-4 mt-4 w-full">
+            <a href="tel:03001234567" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl text-sm transition-all flex justify-center items-center gap-2">📞 Call Shop</a>
+            <a href="https://wa.me/923001234567" class="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-2xl text-sm transition-all flex justify-center items-center gap-2">💬 WhatsApp</a>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl relative">
+          <div class="flex justify-between items-center mb-4">
+            <h4 class="font-extrabold text-sm tracking-wide text-slate-400 uppercase">Live Profit Analytics</h4>
+            <select id="engine-mode-select" class="bg-white/10 text-white text-xs font-bold py-1 px-2.5 rounded-lg border border-white/20 focus:outline-none">
+              <option value="cash" class="text-gray-800">Cash Metric Profile</option>
+              <option value="flour" class="text-gray-800">Flour Metric Profile</option>
+              <option value="hybrid" class="text-gray-800" selected>Combined Hybrid Profile</option>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-xl mb-4 text-center">
+            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all bg-white text-slate-900 shadow" data-range="daily">Daily</button>
+            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400" data-range="weekly">Weekly</button>
+            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400" data-range="monthly">Monthly</button>
+          </div>
+
+          <div class="text-center py-3">
+            <span class="text-xs uppercase font-bold tracking-widest text-emerald-400 opacity-90 block mb-1">Calculated Margin Overview</span>
+            <div id="profit-output" class="text-2xl font-black tracking-tight leading-tight transition-all">Loading calculations...</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-5 shadow-xl border border-gray-100">
+          <h4 class="font-black text-gray-800 mb-4 flex items-center gap-2 border-b pb-3">✍️ New Transaction Record</h4>
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Entry Type</label>
+                <select id="entry-type" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm">
+                  <option value="sale">Customer Cash Sale</option>
+                  <option value="expense">Business Expense Clause</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Flour Rate (Rs/KG)</label>
+                <input id="entry-rate" type="number" placeholder="130" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm" value="130">
+              </div>
+            </div>
+
+            <div id="form-sale-group" class="space-y-3">
+              <input id="entry-cash" type="number" placeholder="Total Cash Amount Received (PKR)" class="w-full p-3 border rounded-xl focus:outline-none">
+              <input id="entry-flour" type="number" placeholder="Flour Net Weight Handed Out (KG)" class="w-full p-3 border rounded-xl focus:outline-none">
+            </div>
+
+            <div id="form-expense-group" class="space-y-3 hidden">
+              <input id="entry-name" type="text" placeholder="Expense Ledger Title (Electricity, Diesel, Labor)" class="w-full p-3 border rounded-xl focus:outline-none">
+              <input id="entry-amount" type="number" placeholder="Disbursed Capital Amount (PKR)" class="w-full p-3 border rounded-xl focus:outline-none">
+            </div>
+
+            <button id="submit-entry" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-xl font-bold ripple shadow-md transition-all">
+              Save Entry to Cloud Ledger
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-reports" class="space-y-4 hidden">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="font-black text-xl text-gray-800">Operational Records Log</h4>
+          <button id="btn-refresh-logs" class="text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">🔄 Refresh</button>
+        </div>
+        <div id="records-list-container" class="space-y-3">
+          </div>
+      </section>
+
+      <section id="tab-expenses" class="space-y-6 hidden">
+        <div class="bg-white rounded-3xl p-5 shadow-xl border border-gray-100">
+          <h4 class="font-black text-gray-800 mb-4 border-b pb-3">⚙️ Profile Settings</h4>
+          <form id="profile-update-form" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Update Password</label>
+              <input id="profile-new-pass" type="password" placeholder="Enter New Secure Password" class="w-full p-3 border rounded-xl focus:outline-none">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold transition-all shadow-md">
+              Update Password Credentials
+            </button>
+          </form>
+        </div>
+
+        <div id="super-admin-panel" class="bg-white rounded-3xl p-5 shadow-xl border border-red-100 hidden">
+          <div class="flex items-center gap-2 border-b border-red-100 pb-3 mb-4">
+            <span class="text-xl">🛡️</span>
+            <h4 class="font-black text-red-800">System Administrator Authorizations</h4>
+          </div>
+          
+          <div class="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-200">
+            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Inline Database Record Overwrite</h5>
+            <div class="space-y-3">
+              <input id="edit-id" type="text" placeholder="Record ID Reference String" class="w-full p-2.5 text-xs border rounded-lg bg-white">
+              <div class="grid grid-cols-2 gap-2">
+                <input id="edit-val" type="number" placeholder="New Cash / Amount" class="w-full p-2.5 text-xs border rounded-lg bg-white">
+                <button id="edit-submit" class="bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-900 transition-all">Override Cells</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Awaiting User Approvals</h5>
+            <div id="pending-users-list" class="space-y-2">
+              </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50">
+      <div class="flex justify-around py-2">
+        <button class="nav-btn flex flex-col items-center text-xs font-bold text-green-600" data-tab="home">
+          <span class="text-xl mb-0.5">🏠</span>Home
+        </button>
+        <button class="nav-btn flex flex-col items-center text-xs font-bold text-gray-400" data-tab="reports">
+          <span class="text-xl mb-0.5">📊</span>Ledger
+        </button>
+        <button class="nav-btn flex flex-col items-center text-xs font-bold text-gray-400" data-tab="expenses">
+          <span class="text-xl mb-0.5">⚙️</span>Profile
+        </button>
+      </div>
+    </nav>
+  </div>
 
   <script src="app.js"></script>
 </body>
