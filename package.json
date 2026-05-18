@@ -1,7 +1,7 @@
 {
   "name": "sundar-sehat-ata",
   "version": "1.0.0",
-  "description": "Wheat grinding records management database pipeline",
+  "description": "Wheat grinding management backend",
   "main": "app.js",
   "dependencies": {
     "googleapis": "^105.0.0"
