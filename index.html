@@ -2,22 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sundar Sehat Ata</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
   <style>
     body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-    .ripple { position: relative; overflow: hidden; }
-    .ripple:active::after { content: ''; position: absolute; background: rgba(255,255,255,0.3); border-radius: 50%; transform: scale(0); animation: ripple 0.4s linear; pointer-events: none; }
-    @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
+    /* Native smooth scroll mechanics for mobile screens */
+    .scroll-container { -webkit-overflow-scrolling: touch; overflow-y: auto; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden">
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
   
-  <div id="auth-view" class="flex-1 flex flex-col justify-center p-6 bg-gradient-to-br from-green-800 to-emerald-600">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md mx-auto">
+  <div id="auth-view" class="flex-1 flex flex-col justify-center p-4 bg-gradient-to-br from-green-800 to-emerald-600 scroll-container">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md mx-auto my-4">
       <div class="text-center mb-6">
         <h1 class="text-3xl font-extrabold text-green-700 tracking-tight">Sundar Sehat Ata</h1>
         <p class="text-gray-500 text-sm mt-1">Wheat Grinding Ledger Manager</p>
@@ -57,11 +57,29 @@
           <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Password</label>
           <input id="signup-pass" type="password" placeholder="••••••••" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
         </div>
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Display Picture URL</label>
-          <input id="signup-dp" type="url" placeholder="https://image-link.com/pic.jpg" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500">
+        
+        <div class="border-t pt-3 mt-2">
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">Profile Picture Option</label>
+          
+          <div class="mb-3">
+            <label class="block text-xs text-gray-400 mb-1">Upload from Phone Storage</label>
+            <input id="signup-file-input" type="file" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+            <p id="upload-status-text" class="text-[11px] text-orange-600 font-medium mt-1 hidden">Uploading asset to cloud storage...</p>
+          </div>
+
+          <div class="relative flex py-2 items-center">
+            <div class="flex-grow border-t border-gray-200"></div>
+            <span class="flex-shrink mx-4 text-gray-400 text-[10px] uppercase font-bold tracking-widest">OR</span>
+            <div class="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Paste Direct Image Web Link</label>
+            <input id="signup-dp" type="url" placeholder="https://image-link.com/pic.jpg" class="w-full p-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-green-500">
+          </div>
         </div>
-        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold transition-all shadow-md">Request Account Creation</button>
+
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold transition-all shadow-md mt-4">Request Account Creation</button>
       </form>
     </div>
   </div>
@@ -77,44 +95,43 @@
     </div>
   </div>
 
-  <div id="app-view" class="flex-1 hidden flex-col overflow-hidden">
+  <div id="app-view" class="flex-1 hidden flex-col min-h-0">
     <header class="bg-green-700 text-white px-4 py-3 shadow-md flex justify-between items-center shrink-0">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-white/20 border border-white/40 overflow-hidden shadow-sm">
-          <img id="user-avatar-top" src="" alt="Avatar" class="w-full h-full object-cover error-fallback">
+          <img id="user-avatar-top" src="" alt="Avatar" class="w-full h-full object-cover">
         </div>
         <div>
-          <h2 id="top-bar-business-title" class="font-black tracking-wide text-sm leading-none">Sundar Sehat Ata</h2>
+          <h2 class="font-black tracking-wide text-sm leading-none">Sundar Sehat Ata</h2>
           <span id="user-display-role" class="text-[10px] uppercase font-bold tracking-widest opacity-75">Staff Dashboard</span>
         </div>
       </div>
       <button id="btn-app-logout" class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold border border-white/20 transition-all">Sign Out</button>
     </header>
 
-    <main class="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+    <main class="flex-1 overflow-y-auto p-4 space-y-6 pb-24 scroll-container">
       
-      <section id="tab-home" class="space-y-6">
+      <section id="tab-home" class="app-tab space-y-6">
         <div class="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
           <div class="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-green-500 to-emerald-400"></div>
           <div class="w-24 h-24 bg-gray-200 rounded-full border-4 border-green-500/30 overflow-hidden shadow-md mb-3">
-            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" alt="Sundar" class="w-full h-full object-cover">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" alt="Owner" class="w-full h-full object-cover">
           </div>
           <h3 class="text-2xl font-black text-gray-800">Sundar Naveed</h3>
           <p class="text-green-600 font-bold text-xs uppercase tracking-widest mt-0.5">Shop Proprietor</p>
-          <p class="text-gray-500 text-sm max-w-xs mt-2 leading-relaxed">Pure wheat grinding processing and ledger records manager system infrastructure.</p>
           <div class="flex gap-4 mt-4 w-full">
-            <a href="tel:03001234567" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl text-sm transition-all flex justify-center items-center gap-2">📞 Call Shop</a>
-            <a href="https://wa.me/923001234567" class="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-2xl text-sm transition-all flex justify-center items-center gap-2">💬 WhatsApp</a>
+            <a href="tel:03001234567" class="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs flex justify-center items-center gap-2">📞 Call Shop</a>
+            <a href="https://wa.me/923001234567" class="flex-1 py-2.5 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-xl text-xs flex justify-center items-center gap-2">💬 WhatsApp</a>
           </div>
         </div>
 
         <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl relative">
           <div class="flex justify-between items-center mb-4">
-            <h4 class="font-extrabold text-sm tracking-wide text-slate-400 uppercase">Live Profit Analytics</h4>
-            <select id="engine-mode-select" class="bg-white/10 text-white text-xs font-bold py-1 px-2.5 rounded-lg border border-white/20 focus:outline-none">
-              <option value="cash" class="text-gray-800">Cash Metric Profile</option>
-              <option value="flour" class="text-gray-800">Flour Metric Profile</option>
-              <option value="hybrid" class="text-gray-800" selected>Combined Hybrid Profile</option>
+            <h4 class="font-extrabold text-xs tracking-wide text-slate-400 uppercase">Live Profit Analytics</h4>
+            <select id="engine-mode-select" class="bg-white/10 text-white text-xs font-bold py-1 px-2 rounded-lg border border-white/20 focus:outline-none">
+              <option value="cash" class="text-gray-800">Cash Profile</option>
+              <option value="flour" class="text-gray-800">Flour Profile</option>
+              <option value="hybrid" class="text-gray-800" selected>Hybrid Profile</option>
             </select>
           </div>
           
@@ -124,9 +141,8 @@
             <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400" data-range="monthly">Monthly</button>
           </div>
 
-          <div class="text-center py-3">
-            <span class="text-xs uppercase font-bold tracking-widest text-emerald-400 opacity-90 block mb-1">Calculated Margin Overview</span>
-            <div id="profit-output" class="text-2xl font-black tracking-tight leading-tight transition-all">Loading calculations...</div>
+          <div class="text-center py-2">
+            <div id="profit-output" class="text-xl font-black tracking-tight leading-tight">Loading metrics...</div>
           </div>
         </div>
 
@@ -138,12 +154,12 @@
                 <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Entry Type</label>
                 <select id="entry-type" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm">
                   <option value="sale">Customer Cash Sale</option>
-                  <option value="expense">Business Expense Clause</option>
+                  <option value="expense">Business Expense</option>
                 </select>
               </div>
               <div>
                 <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Flour Rate (Rs/KG)</label>
-                <input id="entry-rate" type="number" placeholder="130" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm" value="130">
+                <input id="entry-rate" type="number" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm" value="130">
               </div>
             </div>
 
@@ -153,36 +169,35 @@
             </div>
 
             <div id="form-expense-group" class="space-y-3 hidden">
-              <input id="entry-name" type="text" placeholder="Expense Ledger Title (Electricity, Diesel, Labor)" class="w-full p-3 border rounded-xl focus:outline-none">
+              <input id="entry-name" type="text" placeholder="Expense Title (Electricity, Diesel, Labor)" class="w-full p-3 border rounded-xl focus:outline-none">
               <input id="entry-amount" type="number" placeholder="Disbursed Capital Amount (PKR)" class="w-full p-3 border rounded-xl focus:outline-none">
             </div>
 
-            <button id="submit-entry" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-xl font-bold ripple shadow-md transition-all">
+            <button id="submit-entry" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-xl font-bold shadow-md transition-all">
               Save Entry to Cloud Ledger
             </button>
           </div>
         </div>
       </section>
 
-      <section id="tab-reports" class="space-y-4 hidden">
-        <div class="flex justify-between items-center mb-2">
-          <h4 class="font-black text-xl text-gray-800">Operational Records Log</h4>
+      <section id="tab-reports" class="app-tab space-y-4 hidden">
+        <div class="flex justify-between items-center">
+          <h4 class="font-black text-xl text-gray-800">Ledger Records Log</h4>
           <button id="btn-refresh-logs" class="text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">🔄 Refresh</button>
         </div>
-        <div id="records-list-container" class="space-y-3">
-          </div>
+        <div id="records-list-container" class="space-y-3"></div>
       </section>
 
-      <section id="tab-expenses" class="space-y-6 hidden">
+      <section id="tab-expenses" class="app-tab space-y-6 hidden">
         <div class="bg-white rounded-3xl p-5 shadow-xl border border-gray-100">
           <h4 class="font-black text-gray-800 mb-4 border-b pb-3">⚙️ Profile Settings</h4>
           <form id="profile-update-form" class="space-y-4">
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Update Password</label>
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Update Security Password</label>
               <input id="profile-new-pass" type="password" placeholder="Enter New Secure Password" class="w-full p-3 border rounded-xl focus:outline-none">
             </div>
             <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold transition-all shadow-md">
-              Update Password Credentials
+              Update Credentials
             </button>
           </form>
         </div>
@@ -190,15 +205,15 @@
         <div id="super-admin-panel" class="bg-white rounded-3xl p-5 shadow-xl border border-red-100 hidden">
           <div class="flex items-center gap-2 border-b border-red-100 pb-3 mb-4">
             <span class="text-xl">🛡️</span>
-            <h4 class="font-black text-red-800">System Administrator Authorizations</h4>
+            <h4 class="font-black text-red-800">System Approvals Panel</h4>
           </div>
           
           <div class="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-200">
-            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Inline Database Record Overwrite</h5>
+            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Inline Cell Record Overwrite</h5>
             <div class="space-y-3">
               <input id="edit-id" type="text" placeholder="Record ID Reference String" class="w-full p-2.5 text-xs border rounded-lg bg-white">
               <div class="grid grid-cols-2 gap-2">
-                <input id="edit-val" type="number" placeholder="New Cash / Amount" class="w-full p-2.5 text-xs border rounded-lg bg-white">
+                <input id="edit-val" type="number" placeholder="New Value Amount" class="w-full p-2.5 text-xs border rounded-lg bg-white">
                 <button id="edit-submit" class="bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-900 transition-all">Override Cells</button>
               </div>
             </div>
@@ -206,15 +221,14 @@
 
           <div>
             <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Awaiting User Approvals</h5>
-            <div id="pending-users-list" class="space-y-2">
-              </div>
+            <div id="pending-users-list" class="space-y-2"></div>
           </div>
         </div>
       </section>
 
     </main>
 
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50">
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50 shrink-0">
       <div class="flex justify-around py-2">
         <button class="nav-btn flex flex-col items-center text-xs font-bold text-green-600" data-tab="home">
           <span class="text-xl mb-0.5">🏠</span>Home
