@@ -1,6 +1,6 @@
 [build]
   command = "echo 'Deploying static frontend assets...'"
-  publish = ""
+  publish = "."
 
 [functions]
   directory = "netlify/functions"
