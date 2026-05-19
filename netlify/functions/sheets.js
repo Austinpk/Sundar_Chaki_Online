@@ -5,9 +5,12 @@ const clientEmail = process.env.G_CLIENT_EMAIL;
 let privateKey = process.env.G_PRIVATE_KEY;
 
 if (privateKey) {
-  // Cleans out both literal line breaks and typed out '\n' string blocks perfectly
-  privateKey = privateKey.replace(/\\n/g, '\n').replace(/\s?(-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----)\s?/g, '').trim();
-  privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey.replace(/\s+/g, '\n')}\n-----END PRIVATE KEY-----\n`;
+  // If the key is base64 encoded, this decodes it perfectly back to its raw native PEM layout
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
+  } else {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
 }
 
 const googleAuthClient = new google.auth.GoogleAuth({
@@ -19,7 +22,6 @@ const googleAuthClient = new google.auth.GoogleAuth({
 });
 
 exports.handler = async (event, context) => {
-  // Reject unmapped transmission formats
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
@@ -49,7 +51,7 @@ exports.handler = async (event, context) => {
         spreadsheetId: sheetId,
         range: 'Users!A:G',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [row] }
+        resource: { values: [ [row] ] }
       });
       result = { success: true };
     }
@@ -136,7 +138,7 @@ exports.handler = async (event, context) => {
         spreadsheetId: sheetId,
         range: 'Transactions!A:I',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [row] }
+        resource: { values: [ [row] ] }
       });
       result = { success: true };
     }
@@ -151,7 +153,7 @@ exports.handler = async (event, context) => {
         date: r[3],
         cash: parseFloat(r[4]) || 0,
         flour: parseFloat(r[5]) || 0,
-        expName: r[6],
+        expName: r[6] || '',
         expAmt: parseFloat(r[7]) || 0,
         rate: parseFloat(r[8]) || 0
       }));
@@ -194,9 +196,7 @@ exports.handler = async (event, context) => {
     };
 
   } catch (globalError) {
-    // This forces the absolute underlying error reason to print cleanly to your Netlify dashboard
     console.error("🔴 EXPORTED BACKEND RUNTIME CRASH LOG:", globalError.stack || globalError.message);
-
     return {
       statusCode: 500,
       headers: { 
