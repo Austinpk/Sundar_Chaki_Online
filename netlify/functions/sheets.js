@@ -34,7 +34,6 @@ exports.handler = async (event, context) => {
        USER DATA ARCHITECTURE METHODS LAYER
        ======================================================== */
     if (action === 'addUser') {
-      // Row Format: Email, Status, Role, DP URL, Firebase UID, Name, WhatsApp Number
       const row = [
         payload.email, 
         'pending', 
@@ -69,7 +68,6 @@ exports.handler = async (event, context) => {
     else if (action === 'getPendingUsers') {
       const res = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: 'Users!A:G' });
       const rows = res.data.values || [];
-      // Map out objects matching pending filtering constraints
       const pendingUsers = rows.slice(1)
         .filter(r => r[1] === 'pending')
         .map(r => ({ email: r[0], name: r[5], whatsapp: r[6] }));
@@ -82,7 +80,6 @@ exports.handler = async (event, context) => {
       const rIdx = rows.findIndex(r => r[0] === payload.email);
       
       if (rIdx >= 0) {
-        // Explicitly update target status index position inside structural database cells
         await sheets.spreadsheets.values.update({
           spreadsheetId: sheetId,
           range: `Users!B${rIdx + 1}`,
@@ -119,7 +116,7 @@ exports.handler = async (event, context) => {
     /* ========================================================
        TRANSACTIONS LOG MANAGEMENT METHODS LAYER
        ======================================================== */
-    if (action === 'addTransaction') {
+    else if (action === 'addTransaction') {
       const id = 'TX-' + Math.random().toString(36).substr(2, 9).toUpperCase();
       const date = new Date().toISOString();
       const row = [
@@ -157,7 +154,7 @@ exports.handler = async (event, context) => {
         expAmt: parseFloat(r[7]) || 0,
         rate: parseFloat(r[8]) || 0
       }));
-      result = { data: txs.reverse() }; // Return chronological trends backward for mobile logs
+      result = { data: txs.reverse() };
     }
 
     else if (action === 'updateTransaction') {
