@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 let googleAuthClient;
 
 try {
+  // Read the complete JSON credential payload directly from environment configurations
   const rawJsonCredentials = process.env.G_CREDENTIALS_JSON;
   
   if (!rawJsonCredentials) {
@@ -39,6 +40,19 @@ try {
 }
 
 exports.handler = async (event, context) => {
+  // Handle preflight CORS requests
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
@@ -96,9 +110,19 @@ exports.handler = async (event, context) => {
     else if (action === 'getPendingUsers') {
       const res = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: 'Users!A:G' });
       const rows = res.data.values || [];
+      
+      // Filter out rows that are 'pending' and map columns perfectly
       const pendingUsers = rows.slice(1)
         .filter(r => r[1] === 'pending')
-        .map(r => ({ email: r[0], name: r[5], whatsapp: r[6] }));
+        .map(r => ({ 
+          email: r[0], 
+          status: r[1],
+          role: r[2],
+          dp: r[3],
+          uid: r[4],
+          name: r[5] || 'Unknown', 
+          whatsapp: r[6] || 'N/A' 
+        }));
       result = { users: pendingUsers };
     }
 
@@ -113,6 +137,26 @@ exports.handler = async (event, context) => {
           range: `Users!B${rIdx + 1}`,
           valueInputOption: 'USER_ENTERED',
           resource: { values: [['active']] }
+        });
+        result = { success: true };
+      }
+    }
+
+    /* ========================================================
+       NEW FEATURE LAYER: DECLINE & PURGE REGISTRATION REQUEST
+       ======================================================== */
+    else if (action === 'declineUser') {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: 'Users!A:G' });
+      const rows = res.data.values || [];
+      const rIdx = rows.findIndex(r => r[0] === payload.email);
+      
+      if (rIdx >= 0) {
+        // Overwrite the entire registration row array range with blank space entries to remove them
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId,
+          range: `Users!A${rIdx + 1}:G${rIdx + 1}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [['', '', '', '', '', '', '']] }
         });
         result = { success: true };
       }
@@ -213,7 +257,12 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
       body: JSON.stringify(result)
     };
 
@@ -221,7 +270,10 @@ exports.handler = async (event, context) => {
     console.error("🔴 EXPORTED BACKEND RUNTIME CRASH LOG:", globalError.stack || globalError.message);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ success: false, error: globalError.message })
     };
   }
