@@ -1,10 +1,21 @@
 const { google } = require('googleapis');
 
-// Destructure the service account key directly from secure cloud system environments
-const jwt = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+// Securely parse the service account key and fix escaped newline character anomalies
+let credentials;
+try {
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  credentials = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+  
+  if (credentials && credentials.private_key) {
+    // Crucial Fix: Converts escaped literal "\\n" text back into real algorithmic system newlines
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  }
+} catch (err) {
+  console.error("Critical: Failed to pre-parse GOOGLE_SERVICE_ACCOUNT_KEY initialization settings:", err);
+}
 
 const googleAuthClient = new google.auth.GoogleAuth({
-  credentials: jwt,
+  credentials: credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets']
 });
 
