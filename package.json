@@ -1,9 +1,9 @@
 {
-  "name": "sundar-sehat-ata",
+  "name": "sundar-chaki-backend",
   "version": "1.0.0",
-  "description": "Wheat grinding management backend",
-  "main": "app.js",
+  "description": "Google Sheets backend service for Netlify functions",
+  "main": "index.html",
   "dependencies": {
-    "googleapis": "^105.0.0"
+    "googleapis": "^140.0.0"
   }
 }
