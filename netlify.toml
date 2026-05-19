@@ -1,11 +1,18 @@
 [build]
-  command = "echo 'No build step required'"
-  publish = "."
+  command = "echo 'Deploying static frontend assets...'"
+  publish = ""
 
 [functions]
   directory = "netlify/functions"
+  node_version = "20"
 
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
