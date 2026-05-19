@@ -1,248 +1,581 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sundar Sehat Ata</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
-  <style>
-    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-    /* Native smooth scroll mechanics for mobile screens */
-    .scroll-container { -webkit-overflow-scrolling: touch; overflow-y: auto; }
-  </style>
-</head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+const firebaseConfig = {
+  apiKey: "AIzaSyCM8xeCYILdA5kUAE6_kZuEkyN_1L3YGII",
+  authDomain: "sundarchaki-1a6f6.firebaseapp.com",
+  projectId: "sundarchaki-1a6f6",
+  storageBucket: "sundarchaki-1a6f6.firebasestorage.app",
+  messagingSenderId: "858438670800",
+  appId: "1:858438670800:web:72d7cd9c3359866f6441d5",
+  measurementId: "G-W777E1W47S"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const storage = firebase.storage();
+
+let currentUser = null;
+let currentProfileRole = 'user';
+let isHardcodedAdmin = false;
+let globalAdminHardcodedPassword = "N@veed_admin123";
+let transactions = [];
+let activeMode = 'hybrid';
+let activeRange = 'daily';
+let uploadedImageUrl = "";
+
+const views = {
+  public: document.getElementById('public-landing-view'),
+  auth: document.getElementById('auth-view'),
+  pending: document.getElementById('pending-view'),
+  app: document.getElementById('app-view'),
+  nav: document.getElementById('bottom-nav')
+};
+
+const forms = {
+  login: document.getElementById('login-form'),
+  signup: document.getElementById('signup-form'),
+  profileUpdate: document.getElementById('profile-update-form')
+};
+
+const tabs = {
+  home: document.getElementById('tab-home'),
+  reports: document.getElementById('tab-reports'),
+  expenses: document.getElementById('tab-expenses')
+};
+
+// ================= GLOBAL VIEW SWITCH ENGINE MAPPING =================
+function switchView(target) {
+  // Clear modal/overlay state defaults
+  views.auth.classList.add('hidden');
   
-  <div id="auth-view" class="flex-1 flex flex-col justify-center p-4 bg-gradient-to-br from-green-800 to-emerald-600 scroll-container">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md mx-auto my-4">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-extrabold text-green-700 tracking-tight">Sundar Sehat Ata</h1>
-        <p class="text-gray-500 text-sm mt-1">Wheat Grinding Ledger Manager</p>
-      </div>
+  if (target === 'public') {
+    views.public.classList.remove('hidden');
+    views.app.classList.add('hidden');
+    views.nav.classList.add('hidden');
+    views.pending.classList.add('hidden');
+  } else if (target === 'pending') {
+    views.public.classList.add('hidden');
+    views.app.classList.add('hidden');
+    views.nav.classList.add('hidden');
+    views.pending.classList.remove('hidden');
+  } else if (target === 'app') {
+    views.public.classList.add('hidden');
+    views.pending.classList.add('hidden');
+    views.app.classList.remove('hidden');
+    views.nav.classList.remove('hidden');
+  }
+}
 
-      <div class="flex bg-gray-100 p-1 rounded-xl mb-6">
-        <button id="btn-goto-login" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white text-green-700 shadow-sm transition-all">Sign In</button>
-        <button id="btn-goto-signup" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:text-gray-700 transition-all">Register</button>
-      </div>
+// Open / Close Modal Interactivity Layout Triggers
+document.getElementById('btn-show-auth').addEventListener('click', () => views.auth.classList.remove('hidden'));
+document.getElementById('btn-close-auth').addEventListener('click', () => views.auth.classList.add('hidden'));
 
-      <form id="login-form" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Username or Email</label>
-          <input id="login-identity" type="text" placeholder="Enter Admin or Email" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Password</label>
-          <input id="login-pass" type="password" placeholder="••••••••" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl font-bold transition-all shadow-md">Sign In</button>
-      </form>
+document.getElementById('btn-goto-login').addEventListener('click', (e) => toggleAuthTab(e.target, forms.login, forms.signup));
+document.getElementById('btn-goto-signup').addEventListener('click', (e) => toggleAuthTab(e.target, forms.signup, forms.login));
 
-      <form id="signup-form" class="space-y-4 hidden">
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Full Name</label>
-          <input id="signup-name" type="text" placeholder="Worker Name" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Email Address</label>
-          <input id="signup-email" type="email" placeholder="worker@email.com" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">WhatsApp Phone Number</label>
-          <input id="signup-whatsapp" type="text" placeholder="03001234567" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Password</label>
-          <input id="signup-pass" type="password" placeholder="••••••••" class="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" required>
-        </div>
-        
-        <div class="border-t pt-3 mt-2">
-          <label class="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">Profile Picture Option</label>
-          
-          <div class="mb-3">
-            <label class="block text-xs text-gray-400 mb-1">Upload from Phone Storage</label>
-            <input id="signup-file-input" type="file" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
-            <p id="upload-status-text" class="text-[11px] text-orange-600 font-medium mt-1 hidden">Uploading asset to cloud storage...</p>
-          </div>
+function toggleAuthTab(activeBtn, formToShow, formToHide) {
+  document.getElementById('btn-goto-login').className = 'flex-1 py-1.5 rounded-lg text-xs font-bold text-gray-500 transition-all';
+  document.getElementById('btn-goto-signup').className = 'flex-1 py-1.5 rounded-lg text-xs font-bold text-gray-500 transition-all';
+  activeBtn.className = 'flex-1 py-1.5 rounded-lg text-xs font-bold bg-white text-green-700 shadow-sm transition-all';
+  formToShow.classList.remove('hidden');
+  formToHide.classList.add('hidden');
+}
 
-          <div class="relative flex py-2 items-center">
-            <div class="flex-grow border-t border-gray-200"></div>
-            <span class="flex-shrink mx-4 text-gray-400 text-[10px] uppercase font-bold tracking-widest">OR</span>
-            <div class="flex-grow border-t border-gray-200"></div>
-          </div>
+// Protected Dashboard Internal Local Tab Router (Milling Entry vs Direct Sale)
+document.getElementById('form-tab-milling').addEventListener('click', (e) => {
+  e.target.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm';
+  document.getElementById('form-tab-sales').className = 'flex-1 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-all';
+  document.getElementById('milling-form-container').classList.remove('hidden');
+  document.getElementById('sales-form-container').classList.add('hidden');
+});
 
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Paste Direct Image Web Link</label>
-            <input id="signup-dp" type="url" placeholder="https://image-link.com/pic.jpg" class="w-full p-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-green-500">
-          </div>
-        </div>
+document.getElementById('form-tab-sales').addEventListener('click', (e) => {
+  e.target.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm';
+  document.getElementById('form-tab-milling').className = 'flex-1 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-all';
+  document.getElementById('sales-form-container').classList.remove('hidden');
+  document.getElementById('milling-form-container').classList.add('hidden');
+});
 
-        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold transition-all shadow-md mt-4">Request Account Creation</button>
-      </form>
-    </div>
-  </div>
+// Native Device Photo Storage Upload Processing Pipeline
+document.getElementById('signup-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusText = document.getElementById('upload-status-text');
+  statusText.classList.remove('hidden');
+  statusText.textContent = "Uploading asset to storage...";
+  try {
+    const storageRef = storage.ref('avatars/' + Date.now() + '_' + file.name);
+    const uploadTask = await storageRef.put(file);
+    uploadedImageUrl = await uploadTask.ref.getDownloadURL();
+    statusText.textContent = "✅ Image verified successfully!";
+    statusText.className = "text-[10px] text-green-600 font-bold mt-1";
+  } catch (err) {
+    statusText.textContent = "❌ Upload failed: " + err.message;
+    statusText.className = "text-[10px] text-red-600 font-bold mt-1";
+  }
+});
 
-  <div id="pending-view" class="flex-1 hidden flex-col justify-center items-center p-6 bg-gray-50">
-    <div class="text-center max-w-sm p-6 bg-white rounded-3xl shadow-xl">
-      <div class="text-6xl mb-4">⏳</div>
-      <h2 class="text-2xl font-black text-gray-800">Awaiting Approval</h2>
-      <p class="text-gray-500 mt-2 text-sm leading-relaxed">Your account has been successfully requested. An administrator must explicitly authorize your access before you can enter records.</p>
-      <a href="https://wa.me/923481496487?text=Assalam-o-Alaikum%20Admin,%20please%20approve%20my%20Sundar%20Sehat%20Ata%20account." class="mt-6 inline-flex items-center gap-2 bg-green-500 text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-green-600 transition-all">
-        Contact Admin via WhatsApp
-      </a>
-    </div>
-  </div>
+// ================= SECURITY AUTHENTICATED CORE ACCESS MATRIX =================
+forms.login.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const identity = document.getElementById('login-identity').value.trim();
+  const pass = document.getElementById('login-pass').value;
 
-  <div id="app-view" class="flex-1 hidden flex-col min-h-0">
-    <header class="bg-green-700 text-white px-4 py-3 shadow-md flex justify-between items-center shrink-0">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-white/20 border border-white/40 overflow-hidden shadow-sm">
-          <img id="user-avatar-top" src="" alt="Avatar" class="w-full h-full object-cover">
-        </div>
-        <div>
-          <h2 class="font-black tracking-wide text-sm leading-none">Sundar Sehat Ata</h2>
-          <span id="user-display-role" class="text-[10px] uppercase font-bold tracking-widest opacity-75">Staff Dashboard</span>
-        </div>
-      </div>
-      <button id="btn-app-logout" class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold border border-white/20 transition-all">Sign Out</button>
-    </header>
+  if (identity === "Admin") {
+    let matched = false;
+    try {
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getAdminPassword', payload: { fallback: globalAdminHardcodedPassword } })
+      });
+      const data = await res.json();
+      if (data.password && pass === data.password) matched = true;
+    } catch (err) {
+      if (pass === globalAdminHardcodedPassword) matched = true;
+    }
 
-    <main class="flex-1 overflow-y-auto p-4 space-y-6 pb-24 scroll-container">
+    if (matched) {
+      isHardcodedAdmin = true;
+      currentProfileRole = 'admin';
+      currentUser = { email: 'admin@system.local', uid: 'SYSTEM_SUPER_ADMIN_OVERRIDE' };
+      document.getElementById('user-avatar-top').src = "https://cdn-icons-png.flaticon.com/512/2206/2206368.png";
+      document.getElementById('user-display-role').textContent = "🛡️ Super Admin";
+      document.getElementById('super-admin-panel').classList.remove('hidden');
+      switchView('app');
+      await syncDataPipeline();
+      return;
+    } else {
+      alert("Invalid admin credentials.");
+      return;
+    }
+  }
+
+  try {
+    const userCredential = await auth.signInWithEmailAndPassword(identity, pass);
+    currentUser = userCredential.user;
+    await executeSecurityStatusAudit();
+  } catch (err) {
+    alert(`Authentication Error: ${err.message}`);
+  }
+});
+
+// Dynamic Native Password Reset Processing Gateway
+document.getElementById('btn-forgot-password').addEventListener('click', async () => {
+  const emailInput = document.getElementById('login-identity').value.trim();
+  if (!emailInput || !emailInput.includes('@')) {
+    alert("Please enter your valid registered email address in the identity box above first to receive your reset link.");
+    return;
+  }
+  try {
+    await auth.sendPasswordResetEmail(emailInput);
+    alert(`Password recovery loop deployed! Check your email inbox [${emailInput}] for verification parameters.`);
+  } catch (err) {
+    alert(`Recovery Error: ${err.message}`);
+  }
+});
+
+forms.signup.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const whatsapp = document.getElementById('signup-whatsapp').value.trim();
+  const pass = document.getElementById('signup-pass').value;
+  const webLinkUrl = document.getElementById('signup-dp').value.trim();
+  const finalProfileImage = uploadedImageUrl || webLinkUrl || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+
+  try {
+    const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+    const uid = userCredential.user.uid;
+    const response = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addUser', payload: { name, email, whatsapp, dp: finalProfileImage, uid } })
+    });
+    const output = await response.json();
+    if (output.success) {
+      alert("Account registry entry generated!");
+      switchView('pending');
+    }
+  } catch (err) {
+    alert(`Registration Error: ${err.message}`);
+  }
+});
+
+async function executeSecurityStatusAudit() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'checkUser', payload: { email: currentUser.email } })
+    });
+    const data = await res.json();
+    
+    if (!data.status || data.status === 'pending') {
+      switchView('pending');
+      return;
+    }
+
+    currentProfileRole = data.role || 'user';
+    document.getElementById('user-avatar-top').src = data.dp || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+    document.getElementById('user-display-role').textContent = currentProfileRole === 'admin' ? "🛡️ System Admin" : "Staff Account";
+
+    if (currentProfileRole === 'admin') {
+      document.getElementById('super-admin-panel').classList.remove('hidden');
+    } else {
+      document.getElementById('super-admin-panel').classList.add('hidden');
+    }
+    switchView('app');
+    await syncDataPipeline();
+  } catch (err) {
+    alert(`Security Verification Fault: ${err.message}`);
+  }
+}
+
+document.getElementById('btn-app-logout').addEventListener('click', logOutSessionChain);
+document.getElementById('btn-pending-logout').addEventListener('click', logOutSessionChain);
+
+async function logOutSessionChain() {
+  if (!isHardcodedAdmin) await auth.signOut();
+  isHardcodedAdmin = false;
+  currentUser = null;
+  transactions = [];
+  uploadedImageUrl = "";
+  forms.login.reset();
+  forms.signup.reset();
+  switchView('public');
+}
+
+// ================= ADVANCED MILLING LOGISTIC ENGINE CALCULATIONS =================
+const millInputs = {
+  wheat: document.getElementById('mill-wheat-weight'),
+  pickup: document.getElementById('mill-advance-pickup'),
+  rate: document.getElementById('mill-flour-rate'),
+  strategy: document.getElementById('mill-fee-strategy')
+};
+
+function calculateMillingParameters() {
+  const wheatKG = parseFloat(millInputs.wheat.value) || 0;
+  const advancePickup = parseFloat(millInputs.pickup.value) || 0;
+  const flourRate = parseFloat(millInputs.rate.value) || 120;
+  const strategy = millInputs.strategy.value;
+
+  // Rule Definition: 4KG deduction per Mund (40KG) -> Factor = 4 / 40 = 10% weight deduction
+  const millingFeeFlour = wheatKG * 0.10;
+  const cashEquivalent = millingFeeFlour * flourRate;
+  
+  let finalFlourBalance = 0;
+  if (strategy === 'deduct') {
+    // Flour Charges Dropped from weight; balance drops by grinding fee weight and advance pickup
+    finalFlourBalance = wheatKG - millingFeeFlour - advancePickup;
+  } else {
+    // Paid in Cash: Milling fee flour deduction dropped entirely (remains 40kg flour from 40kg wheat)
+    finalFlourBalance = wheatKG - advancePickup;
+  }
+
+  document.getElementById('calc-deduction').textContent = `${millingFeeFlour.toFixed(2)} KG Flour`;
+  document.getElementById('calc-cash-equivalent').textContent = `PKR ${Math.round(cashEquivalent).toLocaleString()}`;
+  document.getElementById('calc-final-balance').textContent = `${finalFlourBalance.toFixed(2)} KG`;
+
+  return { millingFeeFlour, cashEquivalent, finalFlourBalance };
+}
+
+// Map real-time calculations to form inputs
+Object.values(millInputs).forEach(input => input.addEventListener('input', calculateMillingParameters));
+millInputs.strategy.addEventListener('change', calculateMillingParameters);
+
+// Submit Form A: Wheat Milling Run Execution Loop
+document.getElementById('btn-submit-milling').addEventListener('click', async () => {
+  const name = document.getElementById('mill-cust-name').value.trim();
+  const phone = document.getElementById('mill-cust-phone').value.trim();
+  if (!name || !phone) return alert("Please supply explicit client tracing indicators (Name & Mobile Number).");
+
+  const calcs = calculateMillingParameters();
+  const type = millInputs.strategy.value === 'cash' ? 'milling_cash_fee' : 'milling_flour_fee';
+
+  const payloadData = {
+    uid: currentUser.uid,
+    type: type,
+    custName: name,
+    custPhone: phone,
+    wheatWeight: parseFloat(millInputs.wheat.value) || 0,
+    advancePickup: parseFloat(millInputs.pickup.value) || 0,
+    rate: parseFloat(millInputs.rate.value) || 120,
+    deductionFlour: calcs.millingFeeFlour,
+    cashCharged: millInputs.strategy.value === 'cash' ? calcs.cashEquivalent : 0,
+    finalBalance: calcs.finalFlourBalance,
+    date: new Date().toISOString()
+  };
+
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addTransaction', payload: payloadData })
+    });
+    const status = await res.json();
+    if (status.success) {
+      alert("Milling record saved successfully!");
       
-      <section id="tab-home" class="app-tab space-y-6">
-        <div class="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
-          <div class="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-green-500 to-emerald-400"></div>
-          <div class="w-24 h-24 bg-gray-200 rounded-full border-4 border-green-500/30 overflow-hidden shadow-md mb-3">
-            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" alt="Owner" class="w-full h-full object-cover">
-          </div>
-          <h3 class="text-2xl font-black text-gray-800">Sundar Naveed</h3>
-          <p class="text-green-600 font-bold text-xs uppercase tracking-widest mt-0.5">Shop Proprietor</p>
-          <div class="flex gap-4 mt-4 w-full">
-            <a href="tel:03001234567" class="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs flex justify-center items-center gap-2">📞 Call Shop</a>
-            <a href="https://wa.me/923001234567" class="flex-1 py-2.5 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-xl text-xs flex justify-center items-center gap-2">💬 WhatsApp</a>
-          </div>
-        </div>
+      // Automatic WhatsApp text compilation routing matrix
+      const waMessage = `*Sundar Sehat Ata (Sundar Chaki)*\n\nDear ${name}, your wheat milling data has been recorded:\n🌾 Brought Wheat: ${payloadData.wheatWeight} KG\n⚡ Processing Fee Strategy: ${millInputs.strategy.value === 'cash' ? 'Paid in Cash (PKR ' + calcs.cashEquivalent + ')' : 'Deducted Flour (' + calcs.millingFeeFlour + ' KG)'}\n🚚 Advance Flour Picked: ${payloadData.advancePickup} KG\n📦 Remaining Flour Balance: ${calcs.finalFlourBalance.toFixed(2)} KG\n\nThank you for choosing Sundar Sehat Ata!`;
+      window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waMessage)}`, '_blank');
+      
+      // Reset layout variables
+      document.getElementById('mill-cust-name').value = '';
+      document.getElementById('mill-cust-phone').value = '';
+      millInputs.wheat.value = '';
+      millInputs.pickup.value = '0';
+      await syncDataPipeline();
+    }
+  } catch (err) {
+    alert(`Milling Data Logging Error: ${err.message}`);
+  }
+});
 
-        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl relative">
-          <div class="flex justify-between items-center mb-4">
-            <h4 class="font-extrabold text-xs tracking-wide text-slate-400 uppercase">Live Profit Analytics</h4>
-            <select id="engine-mode-select" class="bg-white/10 text-white text-xs font-bold py-1 px-2 rounded-lg border border-white/20 focus:outline-none">
-              <option value="cash" class="text-gray-800">Cash Profile</option>
-              <option value="flour" class="text-gray-800">Flour Profile</option>
-              <option value="hybrid" class="text-gray-800" selected>Hybrid Profile</option>
-            </select>
-          </div>
-          
-          <div class="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-xl mb-4 text-center">
-            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all bg-white text-slate-900 shadow" data-range="daily">Daily</button>
-            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400" data-range="weekly">Weekly</button>
-            <button class="range-toggle-btn text-xs font-bold py-1.5 rounded-lg transition-all text-slate-400" data-range="monthly">Monthly</button>
-          </div>
+// Submit Form B: Direct Over-The-Counter Flour Cash Sales Execution Matrix
+document.getElementById('btn-submit-sale').addEventListener('click', async () => {
+  const name = document.getElementById('sale-cust-name').value.trim();
+  const qty = parseFloat(document.getElementById('sale-flour-qty').value) || 0;
+  const rate = parseFloat(document.getElementById('sale-flour-rate').value) || 120;
+  const phone = document.getElementById('sale-cust-phone').value.trim();
 
-          <div class="text-center py-2">
-            <div id="profit-output" class="text-xl font-black tracking-tight leading-tight">Loading metrics...</div>
-          </div>
-        </div>
+  if (!name || qty <= 0) return alert("Verify walk-in identity variables and item tracking metrics.");
+  const cashCollected = qty * rate;
 
-        <div class="bg-white rounded-3xl p-5 shadow-xl border border-gray-100">
-          <h4 class="font-black text-gray-800 mb-4 flex items-center gap-2 border-b pb-3">✍️ New Transaction Record</h4>
-          <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Entry Type</label>
-                <select id="entry-type" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm">
-                  <option value="sale">Customer Cash Sale</option>
-                  <option value="expense">Business Expense</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Flour Rate (Rs/KG)</label>
-                <input id="entry-rate" type="number" class="w-full p-3 border rounded-xl focus:outline-none bg-gray-50 font-semibold text-sm" value="130">
-              </div>
+  const payloadData = {
+    uid: currentUser.uid,
+    type: 'direct_cash_sale',
+    custName: name,
+    custPhone: phone || 'Walk-In',
+    flourSold: qty,
+    rate: rate,
+    cashCharged: cashCollected,
+    date: new Date().toISOString()
+  };
+
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addTransaction', payload: payloadData })
+    });
+    if ((await res.json()).success) {
+      alert(`Flour sale recorded. Total collected capital amount: PKR ${cashCollected}`);
+      document.getElementById('sale-cust-name').value = '';
+      document.getElementById('sale-flour-qty').value = '';
+      await syncDataPipeline();
+    }
+  } catch (err) {
+    alert(`Sales Processing Fault: ${err.message}`);
+  }
+});
+
+// ================= GLOBAL SHEETS PIPELINE SYNCHRONIZATION ENGINE =================
+async function syncDataPipeline() {
+  try {
+    const res = await fetch('/api/sheets', { method: 'POST', body: JSON.stringify({ action: 'getTransactions' }) });
+    transactions = (await res.json()).data || [];
+    executeEngineCalculations();
+    renderLogsUI();
+    if (currentProfileRole === 'admin') await syncPendingAdminUsersList();
+  } catch (err) {
+    console.error("Master Sync Failure: ", err);
+  }
+}
+
+function executeEngineCalculations() {
+  const now = new Date();
+  const filtered = transactions.filter(t => {
+    const d = new Date(t.date);
+    if (activeRange === 'daily') return d.toDateString() === now.toDateString();
+    if (activeRange === 'weekly') {
+      const start = new Date(); start.setDate(now.getDate() - 7); return d >= start;
+    }
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+
+  // Consolidate cash and milling metrics across type branches
+  let cashInflows = filtered.reduce((sum, t) => sum + (parseFloat(t.cashCharged) || 0), 0);
+  let flourProcessed = filtered.reduce((sum, t) => sum + (parseFloat(t.wheatWeight) || parseFloat(t.flourSold) || 0), 0);
+
+  let outputString = `💰 PKR ${cashInflows.toLocaleString()} | 🌾 ${flourProcessed.toFixed(1)} KG Handled`;
+  document.getElementById('profit-output').innerHTML = outputString;
+}
+
+document.getElementById('engine-mode-select').addEventListener('change', (e) => {
+  activeMode = e.target.value;
+  executeEngineCalculations();
+});
+
+document.querySelectorAll('.range-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.range-toggle-btn').forEach(b => b.className = 'range-toggle-btn text-[11px] font-bold py-1 rounded-lg transition-all text-slate-400');
+    e.target.className = 'range-toggle-btn text-[11px] font-bold py-1 rounded-lg transition-all bg-white text-slate-900 shadow';
+    activeRange = e.target.getAttribute('data-range');
+    executeEngineCalculations();
+  });
+});
+
+function renderLogsUI() {
+  const container = document.getElementById('records-list-container');
+  if (!container) return;
+  container.innerHTML = '';
+  if (transactions.length === 0) {
+    container.innerHTML = '<p class="text-center text-xs text-gray-400 py-4">No ledger logs saved.</p>';
+    return;
+  }
+  transactions.slice(0, 50).forEach(t => {
+    const card = document.createElement('div');
+    card.className = "bg-white p-3 rounded-xl border flex justify-between items-center text-xs shadow-sm";
+    const dateStr = new Date(t.date).toLocaleDateString();
+    
+    if (t.type === 'direct_cash_sale') {
+      card.innerHTML = `<div><p class="font-bold text-gray-800">🛍️ Cash Sale: ${t.custName}</p><p class="text-[10px] text-gray-400">${dateStr}</p></div>
+                        <div class="text-right"><p class="font-bold text-emerald-600">+Rs. ${t.cashCharged}</p><p class="text-[10px] text-gray-400">${t.flourSold} KG Flour</p></div>`;
+    } else {
+      card.innerHTML = `<div><p class="font-bold text-slate-800">🌾 Milling: ${t.custName}</p><p class="text-[10px] text-gray-400">${dateStr}</p></div>
+                        <div class="text-right"><p class="font-bold text-blue-600">${t.wheatWeight} KG Wheat</p><p class="text-[10px] text-orange-500">Bal: ${t.finalBalance} KG</p></div>`;
+    }
+    container.appendChild(card);
+  });
+}
+
+document.getElementById('btn-refresh-logs').addEventListener('click', syncDataPipeline);
+
+// ================= UNRESTRICTED PUBLIC CUSTOMER DIRECTORY SEARCH =================
+document.getElementById('btn-public-search').addEventListener('click', async () => {
+  const queryPhone = document.getElementById('public-search-phone').value.trim();
+  const resultsContainer = document.getElementById('public-search-results');
+  if (!queryPhone) return alert("Please specify a mobile connection query.");
+
+  resultsContainer.innerHTML = '<p class="text-xs text-center text-gray-400 animate-pulse py-2">Searching live database files...</p>';
+  resultsContainer.classList.remove('hidden');
+
+  try {
+    // Fallback: load transactions if not synchronized yet
+    if (transactions.length === 0) {
+      const res = await fetch('/api/sheets', { method: 'POST', body: JSON.stringify({ action: 'getTransactions' }) });
+      transactions = (await res.json()).data || [];
+    }
+
+    const matches = transactions.filter(t => t.custPhone && t.custPhone.replace(/[^0-9]/g, '').includes(queryPhone.replace(/[^0-9]/g, '')));
+    
+    if (matches.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="p-4 bg-orange-50 border border-orange-200 text-orange-800 rounded-xl text-xs text-center font-medium">
+          ⚠️ No record file entries found associated with phone query code: ${queryPhone}
+        </div>`;
+      return;
+    }
+
+    let recordsHTML = `<h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">File Summary Records (${matches.length})</h4>`;
+    matches.forEach(m => {
+      const dateFormatted = new Date(m.date).toLocaleDateString();
+      if (m.type === 'direct_cash_sale') {
+        recordsHTML += `
+          <div class="p-3 bg-gray-50 rounded-xl border text-xs flex justify-between">
+            <div><span class="font-bold text-gray-700">🛒 Flour Purchase</span><p class="text-[10px] text-gray-400">${dateFormatted}</p></div>
+            <div class="text-right"><span class="font-bold text-gray-800">${m.flourSold} KG Taken</span><p class="text-[10px] text-gray-500">Paid in Full Cash</p></div>
+          </div>`;
+      } else {
+        recordsHTML += `
+          <div class="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs space-y-1">
+            <div class="flex justify-between font-bold text-emerald-900">
+              <span>🌾 Wheat Milling Session</span><span>${dateFormatted}</span>
             </div>
-
-            <div id="form-sale-group" class="space-y-3">
-              <input id="entry-cash" type="number" placeholder="Total Cash Amount Received (PKR)" class="w-full p-3 border rounded-xl focus:outline-none">
-              <input id="entry-flour" type="number" placeholder="Flour Net Weight Handed Out (KG)" class="w-full p-3 border rounded-xl focus:outline-none">
+            <div class="grid grid-cols-2 gap-1 text-[11px] text-emerald-800 font-medium">
+              <div>• Brought Wheat: <b>${m.wheatWeight} KG</b></div>
+              <div>• Advance Flour Picked: <b>${m.advancePickup} KG</b></div>
+              <div>• Milling Fee Mode: <b>${m.cashCharged > 0 ? 'Paid Cash' : 'Deducted Flour'}</b></div>
+              <div class="text-right col-span-2 text-xs font-black text-green-700 pt-1 border-t border-emerald-200/40">Remaining Flour Balance: ${m.finalBalance} KG</div>
             </div>
+          </div>`;
+      });
+    resultsContainer.innerHTML = recordsHTML;
+  } catch (err) {
+    resultsContainer.innerHTML = `<p class="text-xs text-red-600 font-bold">Lookup Fault: ${err.message}</p>`;
+  }
+});
 
-            <div id="form-expense-group" class="space-y-3 hidden">
-              <input id="entry-name" type="text" placeholder="Expense Title (Electricity, Diesel, Labor)" class="w-full p-3 border rounded-xl focus:outline-none">
-              <input id="entry-amount" type="number" placeholder="Disbursed Capital Amount (PKR)" class="w-full p-3 border rounded-xl focus:outline-none">
-            </div>
+// ================= SYSTEM ADMINISTRATION & USER MANAGEMENT PANEL =================
+async function syncPendingAdminUsersList() {
+  try {
+    const res = await fetch('/api/sheets', { method: 'POST', body: JSON.stringify({ action: 'getPendingUsers' }) });
+    const out = await res.json();
+    const container = document.getElementById('pending-users-list');
+    if (!container) return;
+    container.innerHTML = '';
 
-            <button id="submit-entry" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-xl font-bold shadow-md transition-all">
-              Save Entry to Cloud Ledger
-            </button>
+    const list = out.users || [];
+    if (list.length === 0) {
+      container.innerHTML = '<p class="text-[11px] text-gray-400 text-center py-2">No pending worker accounts.</p>';
+      return;
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    list.forEach(u => {
+      const isEmailValid = emailRegex.test(u.email);
+      const row = document.createElement('div');
+      row.className = "bg-white p-3 rounded-xl border text-xs shadow-sm flex flex-col gap-2 mb-2";
+      row.innerHTML = `
+        <div class="flex items-start gap-2">
+          <img src="${u.dp || 'https://cdn-icons-png.flaticon.com/512/847/847969.png'}" class="w-8 h-8 rounded-full object-cover shrink-0">
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-gray-800">${u.name || 'Staff'}</p>
+            <p class="text-[10px] text-gray-500 font-mono break-all">${u.email}</p>
           </div>
         </div>
-      </section>
-
-      <section id="tab-reports" class="app-tab space-y-4 hidden">
-        <div class="flex justify-between items-center">
-          <h4 class="font-black text-xl text-gray-800">Ledger Records Log</h4>
-          <button id="btn-refresh-logs" class="text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">🔄 Refresh</button>
+        <div class="flex gap-2">
+          <button class="flex-1 bg-green-600 text-white font-bold py-1.5 rounded-lg text-[10px]" onclick="processAdminDecision('${u.email}', 'approveUser')">Approve</button>
+          <button class="flex-1 bg-red-50 text-red-700 font-bold py-1.5 rounded-lg text-[10px] border border-red-200" onclick="processAdminDecision('${u.email}', 'declineUser')">Decline</button>
         </div>
-        <div id="records-list-container" class="space-y-3"></div>
-      </section>
+      `;
+      container.appendChild(row);
+    });
+  } catch (err) {
+    console.error("Failed loading approvals panel list:", err);
+  }
+}
 
-      <section id="tab-expenses" class="app-tab space-y-6 hidden">
-        <div class="bg-white rounded-3xl p-5 shadow-xl border border-gray-100">
-          <h4 class="font-black text-gray-800 mb-4 border-b pb-3">⚙️ Profile Settings</h4>
-          <form id="profile-update-form" class="space-y-4">
-            <div>
-              <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Update Security Password</label>
-              <input id="profile-new-pass" type="password" placeholder="Enter New Secure Password" class="w-full p-3 border rounded-xl focus:outline-none">
-            </div>
-            <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold transition-all shadow-md">
-              Update Credentials
-            </button>
-          </form>
-        </div>
+window.processAdminDecision = async function(email, actionType) {
+  if (!confirm(`Execute action choice [${actionType}] across email: ${email}?`)) return;
+  try {
+    const res = await fetch('/api/sheets', { method: 'POST', body: JSON.stringify({ action: actionType, payload: { email } }) });
+    if ((await res.json()).success) {
+      alert('Security ledger registry status variable altered successfully.');
+      await syncPendingAdminUsersList();
+    }
+  } catch (err) { alert(`Fault: ${err.message}`); }
+};
 
-        <div id="super-admin-panel" class="bg-white rounded-3xl p-5 shadow-xl border border-red-100 hidden">
-          <div class="flex items-center gap-2 border-b border-red-100 pb-3 mb-4">
-            <span class="text-xl">🛡️</span>
-            <h4 class="font-black text-red-800">System Approvals Panel</h4>
-          </div>
-          
-          <div class="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-200">
-            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Inline Cell Record Overwrite</h5>
-            <div class="space-y-3">
-              <input id="edit-id" type="text" placeholder="Record ID Reference String" class="w-full p-2.5 text-xs border rounded-lg bg-white">
-              <div class="grid grid-cols-2 gap-2">
-                <input id="edit-val" type="number" placeholder="New Value Amount" class="w-full p-2.5 text-xs border rounded-lg bg-white">
-                <button id="edit-submit" class="bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-900 transition-all">Override Cells</button>
-              </div>
-            </div>
-          </div>
+document.getElementById('edit-submit').addEventListener('click', async () => {
+  const id = document.getElementById('edit-id').value.trim();
+  const val = parseFloat(document.getElementById('edit-val').value) || 0;
+  if (!id) return alert("Record ID required.");
+  try {
+    const res = await fetch('/api/sheets', { method: 'POST', body: JSON.stringify({ action: 'updateTransaction', payload: { id, val } }) });
+    if ((await res.json()).success) {
+      alert("Ledger cell overridden.");
+      document.getElementById('edit-id').value = '';
+      document.getElementById('edit-val').value = '';
+      await syncDataPipeline();
+    }
+  } catch (err) { alert(`Error: ${err.message}`); }
+});
 
-          <div>
-            <h5 class="text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">Awaiting User Approvals</h5>
-            <div id="pending-users-list" class="space-y-3"></div>
-          </div>
-        </div>
-      </section>
+// Fixed Bottom Main Navigation Configuration Links Routing Block
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const targetTab = e.currentTarget.getAttribute('data-tab');
+    document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('text-green-600'); b.classList.add('text-gray-400'); });
+    e.currentTarget.classList.remove('text-gray-400'); e.currentTarget.classList.add('text-green-600');
+    Object.keys(tabs).forEach(k => tabs[k].classList.add('hidden'));
+    tabs[targetTab].classList.remove('hidden');
+  });
+});
 
-    </main>
-
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50 shrink-0">
-      <div class="flex justify-around py-2">
-        <button class="nav-btn flex flex-col items-center text-xs font-bold text-green-600" data-tab="home">
-          <span class="text-xl mb-0.5">🏠</span>Home
-        </button>
-        <button class="nav-btn flex flex-col items-center text-xs font-bold text-gray-400" data-tab="reports">
-          <span class="text-xl mb-0.5">📊</span>Ledger
-        </button>
-        <button class="nav-btn flex flex-col items-center text-xs font-bold text-gray-400" data-tab="expenses">
-          <span class="text-xl mb-0.5">⚙️</span>Profile
-        </button>
-      </div>
-    </nav>
-  </div>
-
-  <script src="app.js"></script>
-</body>
-</html>
+// ================= FIRMWARE RESILIENT GLOBAL IDENTITY ROUTING =================
+// Crucial: Run auth lifecycle state checker immediately to fix the refresh logout issue
+auth.onAuthStateChanged(async (user) => {
+  if (user && !isHardcodedAdmin) {
+    currentUser = user;
+    await executeSecurityStatusAudit();
+  } else if (!isHardcodedAdmin) {
+    switchView('public');
+  }
+});
