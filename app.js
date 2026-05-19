@@ -340,10 +340,10 @@ function executeEngineCalculations() {
     outputString = `<span class="text-amber-500">${netFlourProfit.toFixed(2)} KG</span>`;
   } else {
     outputString = `<div class="text-sm flex flex-col gap-1 items-center">
-                     <div>💰 PKR ${netCashProfit.toLocaleString()}</div>
-                     <div class="text-[10px] text-slate-400">and</div>
-                     <div>🌾 ${netFlourProfit.toFixed(2)} KG Flour</div>
-                   </div>`;
+                      <div>💰 PKR ${netCashProfit.toLocaleString()}</div>
+                      <div class="text-[10px] text-slate-400">and</div>
+                      <div>🌾 ${netFlourProfit.toFixed(2)} KG Flour</div>
+                    </div>`;
   }
   document.getElementById('profit-output').innerHTML = outputString;
 }
@@ -389,6 +389,9 @@ function renderLogsUI() {
 
 document.getElementById('btn-refresh-logs').addEventListener('click', syncDataPipeline);
 
+/* ========================================================
+   UPDATED: SYSTEM ADMINISTRATION & DUAL CONTROL ACTIONS LAYER
+   ======================================================== */
 async function syncPendingAdminUsersList() {
   try {
     const res = await fetch('/api/sheets', {
@@ -397,6 +400,7 @@ async function syncPendingAdminUsersList() {
     });
     const out = await res.json();
     const container = document.getElementById('pending-users-list');
+    if (!container) return;
     container.innerHTML = '';
 
     const list = out.users || [];
@@ -405,11 +409,35 @@ async function syncPendingAdminUsersList() {
       return;
     }
 
+    // Email address formatting check matching RFC standard rules
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
     list.forEach(u => {
+      const isEmailValid = emailRegex.test(u.email);
       const row = document.createElement('div');
-      row.className = "bg-red-50 p-3 rounded-xl border border-red-100 flex justify-between items-center text-xs";
-      row.innerHTML = `<div><p class="font-bold text-gray-800">${u.name || 'Staff'}</p><p class="text-[10px] text-gray-400">${u.email}</p></div>
-                       <button class="bg-green-600 text-white font-bold px-3 py-1 rounded-md text-[10px]" onclick="authorizeTargetStaffUser('${u.email}')">Authorize</button>`;
+      row.className = "bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 text-left mb-2";
+      
+      row.innerHTML = `
+        <div class="flex items-start gap-3">
+          <img src="${u.dp || 'https://cdn-icons-png.flaticon.com/512/847/847969.png'}" class="w-10 h-10 rounded-full border object-cover shrink-0">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <p class="font-bold text-gray-800 text-sm truncate">${u.name || 'Staff'}</p>
+              ${isEmailValid 
+                ? '<span class="px-1.5 py-0.5 text-[9px] font-bold bg-green-100 text-green-700 rounded-full">✓ Valid Email</span>' 
+                : '<span class="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-700 rounded-full animate-pulse">⚠ Invalid Syntax</span>'
+              }
+            </div>
+            <p class="text-[11px] text-gray-600 font-mono mt-0.5 break-all"><b>Email:</b> ${u.email}</p>
+            <p class="text-[11px] text-gray-500"><b>WhatsApp:</b> ${u.whatsapp || 'N/A'}</p>
+            <p class="text-[9px] text-gray-400 font-mono truncate"><b>UID:</b> ${u.uid || 'N/A'}</p>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-xs transition-all shadow-sm" onclick="processAdminDecision('${u.email}', 'approveUser')">Approve</button>
+          <button class="flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-bold py-2 rounded-lg text-xs transition-all border border-red-200" onclick="processAdminDecision('${u.email}', 'declineUser')">Decline</button>
+        </div>
+      `;
       container.appendChild(row);
     });
   } catch (err) {
@@ -417,19 +445,27 @@ async function syncPendingAdminUsersList() {
   }
 }
 
-window.authorizeTargetStaffUser = async function(email) {
+window.processAdminDecision = async function(email, actionType) {
+  const messagePrompt = actionType === 'approveUser' 
+    ? `Authorize account verification for ${email}?` 
+    : `Decline and wipe registration log records for ${email}?`;
+
+  if (!confirm(messagePrompt)) return;
+
   try {
     const res = await fetch('/api/sheets', {
       method: 'POST',
-      body: JSON.stringify({ action: 'approveUser', payload: { email } })
+      body: JSON.stringify({ action: actionType, payload: { email } })
     });
     const status = await res.json();
     if (status.success) {
-      alert(`User account [${email}] approved.`);
+      alert(actionType === 'approveUser' ? 'Account activated successfully!' : 'Registration request declined and purged.');
       await syncPendingAdminUsersList();
+    } else {
+      alert('Action error: ' + (status.error || 'Server rejected context execution parameters.'));
     }
   } catch (err) {
-    alert(`Fault: ${err.message}`);
+    alert(`Gateway Connection Failure: ${err.message}`);
   }
 };
 
