@@ -45,7 +45,6 @@
           <input id="public-search-phone" type="tel" placeholder="e.g. 03001234567" class="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-semibold tracking-wide">
           <button id="btn-public-search" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 rounded-xl text-xs transition-all shadow-sm">Search File</button>
         </div>
-
         <div id="public-search-results" class="mt-4 hidden space-y-3"></div>
       </div>
     </main>
@@ -136,15 +135,34 @@
     <main class="flex-1 overflow-y-auto p-4 space-y-6 pb-24 scroll-container">
       <section id="tab-home" class="app-tab space-y-6">
         
-        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl">
-          <div class="flex justify-between items-center mb-3">
-            <h4 class="font-extrabold text-[10px] tracking-wide text-slate-400 uppercase">Live Profit Analytics Portfolio</h4>
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-extrabold text-[10px] tracking-wide text-slate-400 uppercase">Live Operations Analytics</h4>
             <select id="engine-mode-select" class="bg-white/10 text-white text-[11px] font-bold py-1 px-2 rounded-lg border border-white/20 focus:outline-none">
-              <option value="hybrid" class="text-gray-800" selected>Hybrid Profile</option>
+              <option value="hybrid" class="text-gray-800" selected>Hybrid View</option>
             </select>
           </div>
+          
           <div class="text-center py-1">
             <div id="profit-output" class="text-lg font-black tracking-tight text-emerald-400">Loading metrics...</div>
+          </div>
+
+          <div class="grid grid-cols-4 gap-1.5 bg-white/5 p-1 rounded-xl text-center">
+            <button id="report-range-daily" class="report-range-btn py-1 text-[11px] font-bold rounded-lg transition-all bg-emerald-600 text-white shadow-sm" data-range="daily">Daily</button>
+            <button id="report-range-weekly" class="report-range-btn py-1 text-[11px] font-bold text-slate-300 hover:text-white transition-all" data-range="weekly">Weekly</button>
+            <button id="report-range-monthly" class="report-range-btn py-1 text-[11px] font-bold text-slate-300 hover:text-white transition-all" data-range="monthly">Monthly</button>
+            <button id="report-range-custom" class="report-range-btn py-1 text-[11px] font-bold text-slate-300 hover:text-white transition-all" data-range="custom">Custom</button>
+          </div>
+
+          <div id="custom-date-container" class="hidden grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
+            <div>
+              <label class="block text-[9px] text-slate-400 font-bold uppercase mb-0.5">From:</label>
+              <input type="date" id="custom-date-start" class="w-full bg-slate-800 text-white text-xs p-1.5 rounded-lg border border-white/10 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[9px] text-slate-400 font-bold uppercase mb-0.5">To:</label>
+              <input type="date" id="custom-date-end" class="w-full bg-slate-800 text-white text-xs p-1.5 rounded-lg border border-white/10 focus:outline-none">
+            </div>
           </div>
         </div>
 
@@ -179,19 +197,29 @@
                 <span>Final Remaining Flour Balance:</span><span id="calc-final-balance">0.00 KG</span>
               </div>
             </div>
-            <button id="btn-submit-milling" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold text-xs shadow-md">💾 Save Milling Run & Notify</button>
+            <button id="btn-submit-milling" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold text-xs shadow-md">💾 Save Milling Run</button>
           </div>
         </div>
 
         <div id="sales-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hidden">
           <h4 class="font-black text-gray-800 mb-3 flex items-center gap-2 border-b pb-2 text-sm">💰 Direct Flour Cash Transaction</h4>
           <div class="space-y-3.5">
-            <input id="sale-cust-name" type="text" placeholder="Buyer Name" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
             <div class="grid grid-cols-2 gap-2">
-              <input id="sale-flour-qty" type="number" placeholder="Flour Quantity Sold (KG)" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-bold">
+              <input id="sale-cust-name" type="text" placeholder="Buyer Name" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
+              <input id="sale-cust-phone" type="tel" placeholder="Mobile Number" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="sale-flour-qty" type="number" placeholder="Flour Qty Sold (KG)" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-bold">
               <input id="sale-flour-rate" type="number" value="120" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-bold">
             </div>
-            <input id="sale-cust-phone" type="tel" placeholder="Mobile Number (Optional)" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
+            
+            <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-xs space-y-1 text-amber-900">
+              <div class="flex justify-between"><span>Product Type:</span><span class="font-medium">Premium Grinded Flour</span></div>
+              <div class="flex justify-between border-t pt-1 font-black text-amber-800 text-sm">
+                <span>Total Due Bill Amount:</span><span id="calc-sale-bill">PKR 0</span>
+              </div>
+            </div>
+
             <button id="btn-submit-sale" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold text-xs shadow-md">💾 Record Cash Sale</button>
           </div>
         </div>
@@ -199,7 +227,10 @@
 
       <section id="tab-reports" class="app-tab space-y-4 hidden">
         <div class="flex justify-between items-center">
-          <h4 class="font-black text-sm text-gray-800">Ledger Records Log</h4>
+          <div>
+            <h4 class="font-black text-sm text-gray-800">Ledger Records Log</h4>
+            <p class="text-[10px] text-gray-400">Tap an entry below to see comprehensive customer files, edit details or delete entries.</p>
+          </div>
           <button id="btn-refresh-logs" class="text-[11px] font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg border">🔄 Refresh</button>
         </div>
         <div id="records-list-container" class="space-y-3"></div>
@@ -220,6 +251,21 @@
         <button class="nav-btn flex flex-col items-center text-[11px] font-bold text-gray-400" data-tab="expenses"><span>⚙️</span>Admin</button>
       </div>
     </nav>
+  </div>
+
+  <div id="details-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden relative border flex flex-col max-h-[85vh]">
+      <div class="bg-emerald-800 text-white p-4 font-black text-sm flex justify-between items-center shrink-0">
+        <span>📋 Complete Invoice Details</span>
+        <button id="btn-close-modal" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg text-xs font-bold">Close</button>
+      </div>
+      <div id="modal-content-body" class="p-5 space-y-3 text-xs leading-relaxed overflow-y-auto flex-1">
+        </div>
+      <div class="bg-slate-50 p-3 border-t grid grid-cols-2 gap-2 shrink-0">
+        <button id="btn-edit-record" class="bg-white border text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-all hover:bg-gray-100 shadow-sm">✏️ Edit Fields</button>
+        <button id="btn-delete-record" class="bg-red-50 text-red-700 font-bold py-2.5 rounded-xl text-xs transition-all hover:bg-red-100">🗑️ Delete Record</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
