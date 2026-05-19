@@ -1,23 +1,11 @@
 const { google } = require('googleapis');
+const path = require('path');
 
-// Pull the raw configuration parameters directly from environment settings
-const clientEmail = process.env.G_CLIENT_EMAIL;
-let privateKey = process.env.G_PRIVATE_KEY;
-
-if (privateKey) {
-  // If the key is base64 encoded, this decodes it perfectly back to its raw native PEM layout
-  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-    privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
-  } else {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
-}
+// Dynamically reference the secure credentials file stored in your repository root
+const credentialsPath = path.join(__dirname, '..', '..', 'google-credentials.json');
 
 const googleAuthClient = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: clientEmail,
-    private_key: privateKey
-  },
+  keyFile: credentialsPath,
   scopes: ['https://www.googleapis.com/auth/spreadsheets']
 });
 
@@ -51,7 +39,7 @@ exports.handler = async (event, context) => {
         spreadsheetId: sheetId,
         range: 'Users!A:G',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [ [row] ] }
+        resource: { values: [row] }
       });
       result = { success: true };
     }
@@ -138,7 +126,7 @@ exports.handler = async (event, context) => {
         spreadsheetId: sheetId,
         range: 'Transactions!A:I',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [ [row] ] }
+        resource: { values: [row] }
       });
       result = { success: true };
     }
