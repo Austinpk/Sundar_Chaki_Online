@@ -3,20 +3,33 @@ const { google } = require('googleapis');
 let googleAuthClient;
 
 try {
-  // Read the complete JSON credential payload directly from environment configurations
   const rawJsonCredentials = process.env.G_CREDENTIALS_JSON;
   
   if (!rawJsonCredentials) {
     throw new Error("Missing G_CREDENTIALS_JSON environment variable setup on Netlify.");
   }
 
-  // Parse the raw text string into a native structured object block
   const credentialsObject = JSON.parse(rawJsonCredentials);
+
+  // Extract the raw block data out of the private key
+  let pureKeyText = credentialsObject.private_key;
+  
+  // Strip out any headers, footers, existing newlines, or literal '\n' text characters
+  pureKeyText = pureKeyText
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\\n/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+
+  // Reconstruct the PKCS#8 private key block structure with rigorous 64-character row boundaries
+  const keyRows = pureKeyText.match(/.{1,64}/g);
+  const formattedPrivateKey = `-----BEGIN PRIVATE KEY-----\n${keyRows.join('\n')}\n-----END PRIVATE KEY-----\n`;
 
   googleAuthClient = new google.auth.GoogleAuth({
     credentials: {
       client_email: credentialsObject.client_email,
-      private_key: credentialsObject.private_key.replace(/\\n/g, '\n')
+      private_key: formattedPrivateKey
     },
     scopes: ['https://www.googleapis.com/auth/spreadsheets']
   });
