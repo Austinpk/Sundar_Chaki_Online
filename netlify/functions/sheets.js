@@ -1,21 +1,19 @@
 const { google } = require('googleapis');
 
-// Securely parse the service account key and fix escaped newline character anomalies
-let credentials;
-try {
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  credentials = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
-  
-  if (credentials && credentials.private_key) {
-    // Crucial Fix: Converts escaped literal "\\n" text back into real algorithmic system newlines
-    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
-  }
-} catch (err) {
-  console.error("Critical: Failed to pre-parse GOOGLE_SERVICE_ACCOUNT_KEY initialization settings:", err);
+// Pull the raw configuration parameters directly without hitting dangerous JSON string parses
+const clientEmail = process.env.G_CLIENT_EMAIL;
+let privateKey = process.env.G_PRIVATE_KEY;
+
+if (privateKey) {
+  // Cleans out both literal and escaped line breaks cleanly
+  privateKey = privateKey.replace(/\\n/g, '\n');
 }
 
 const googleAuthClient = new google.auth.GoogleAuth({
-  credentials: credentials,
+  credentials: {
+    client_email: clientEmail,
+    private_key: privateKey
+  },
   scopes: ['https://www.googleapis.com/auth/spreadsheets']
 });
 
@@ -121,7 +119,7 @@ exports.handler = async (event, context) => {
     /* ========================================================
        TRANSACTIONS LOG MANAGEMENT METHODS LAYER
        ======================================================== */
-    else if (action === 'addTransaction') {
+    if (action === 'addTransaction') {
       const id = 'TX-' + Math.random().toString(36).substr(2, 9).toUpperCase();
       const date = new Date().toISOString();
       const row = [
