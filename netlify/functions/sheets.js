@@ -1,17 +1,41 @@
 const { google } = require('googleapis');
-const path = require('path');
 
-// Dynamically reference the secure credentials file stored in your repository root
-const credentialsPath = path.join(__dirname, '..', '..', 'google-credentials.json');
+let googleAuthClient;
 
-const googleAuthClient = new google.auth.GoogleAuth({
-  keyFile: credentialsPath,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets']
-});
+try {
+  // Read the complete JSON credential payload directly from environment configurations
+  const rawJsonCredentials = process.env.G_CREDENTIALS_JSON;
+  
+  if (!rawJsonCredentials) {
+    throw new Error("Missing G_CREDENTIALS_JSON environment variable setup on Netlify.");
+  }
+
+  // Parse the raw text string into a native structured object block
+  const credentialsObject = JSON.parse(rawJsonCredentials);
+
+  googleAuthClient = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: credentialsObject.client_email,
+      private_key: credentialsObject.private_key.replace(/\\n/g, '\n')
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+
+} catch (setupError) {
+  console.error("🔴 INITIALIZATION GATEWAY CRASH:", setupError.message);
+}
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
+  if (!googleAuthClient) {
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ success: false, error: "Backend Google Auth client initialization failed." })
+    };
   }
 
   const sheets = google.sheets({ version: 'v4', auth: googleAuthClient });
@@ -176,10 +200,7 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify(result)
     };
 
@@ -187,10 +208,7 @@ exports.handler = async (event, context) => {
     console.error("🔴 EXPORTED BACKEND RUNTIME CRASH LOG:", globalError.stack || globalError.message);
     return {
       statusCode: 500,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ success: false, error: globalError.message })
     };
   }
