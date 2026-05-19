@@ -1,12 +1,13 @@
 const { google } = require('googleapis');
 
-// Pull the raw configuration parameters directly without hitting dangerous JSON string parses
+// Pull the raw configuration parameters directly from environment settings
 const clientEmail = process.env.G_CLIENT_EMAIL;
 let privateKey = process.env.G_PRIVATE_KEY;
 
 if (privateKey) {
-  // Cleans out both literal and escaped line breaks cleanly
-  privateKey = privateKey.replace(/\\n/g, '\n');
+  // Cleans out both literal line breaks and typed out '\n' string blocks perfectly
+  privateKey = privateKey.replace(/\\n/g, '\n').replace(/\s?(-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----)\s?/g, '').trim();
+  privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey.replace(/\s+/g, '\n')}\n-----END PRIVATE KEY-----\n`;
 }
 
 const googleAuthClient = new google.auth.GoogleAuth({
@@ -185,14 +186,23 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify(result)
     };
 
   } catch (globalError) {
+    // This forces the absolute underlying error reason to print cleanly to your Netlify dashboard
+    console.error("🔴 EXPORTED BACKEND RUNTIME CRASH LOG:", globalError.stack || globalError.message);
+
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ success: false, error: globalError.message })
     };
   }
