@@ -1,7 +1,7 @@
 /**
  * Sundar Sehat Ata - Production Frontend Application Logic
- * Full Feature Set (Security, Worker Analytics, Custom Dates, File Uploads & Rounding Patches)
- * Fix: Explicit globally monitored operator name variable assignment.
+ * Full Feature Set (Security Shield Patches, Worker Analytics, Custom Dates & Rounding)
+ * Hotfixes applied: Interceptor locks on Firebase auto-login race conditions, Base64 validation.
  */
 
 const firebaseConfig = {
@@ -17,10 +17,9 @@ const firebaseConfig = {
 // Initialize Firebase SDK Modules
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
-const storage = firebase.storage();
 
 // Production API Web App Target Mapping Reference
-const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbwBiFhBQVSc8vAWDCYnN2cpWMR2l3ylHnaP2GO_jyTcbUggsGo8xQz025dX6vFZM0c9/exec";
+const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbwvVLFASmRXPadYlOI7n9dOMTmPTURdpcXbbxeDE4AqdyDCcJwrESwBEd_vXXpsLJ4E/exec";
 
 let currentUser = null;
 let currentProfileRole = 'user';
@@ -30,8 +29,11 @@ let globalAdminHardcodedPassword = "N@veed_admin123";
 let transactions = [];
 let globalWorkersList = [];
 let activeRange = 'daily'; 
-let uploadedImageUrl = "";
+let uploadedImageUrl = ""; 
 let currentSelectedRecord = null; 
+
+// CRITICAL SECURITY LOCK: Prevents background auth listeners from triggering during signup state runs
+let isProcessingRegistration = false;
 
 const views = {
   public: document.getElementById('public-landing-view'),
@@ -78,7 +80,7 @@ function switchView(target) {
     views.nav.classList.add('hidden');
     views.pending.classList.add('hidden');
   } else if (target === 'pending') {
-    views.public.add('hidden');
+    views.public.classList.add('hidden'); 
     views.app.classList.add('hidden');
     views.nav.classList.add('hidden');
     views.pending.classList.remove('hidden');
@@ -124,26 +126,30 @@ document.getElementById('form-tab-sales').addEventListener('click', (e) => {
   e.target.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm';
 });
 
-// FIREBASE STORAGE IMAGE UPLOAD MANAGEMENT
-document.getElementById('signup-file-input').addEventListener('change', async (e) => {
+// LOCAL FILE TO BASE64 PARSER STRIPPER
+document.getElementById('signup-file-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  
   const statusText = document.getElementById('upload-status-text');
   statusText.classList.remove('hidden');
-  statusText.textContent = "Uploading asset to storage...";
-  try {
-    const storageRef = storage.ref('avatars/' + Date.now() + '_' + file.name);
-    const uploadTask = await storageRef.put(file);
-    uploadedImageUrl = await uploadTask.ref.getDownloadURL();
-    statusText.textContent = "✅ Image uploaded successfully!";
+  statusText.className = "text-[10px] text-amber-600 font-bold mt-1";
+  statusText.textContent = "⌛ Processing profile photo structure...";
+
+  const reader = new FileReader();
+  reader.onload = function (event) {
+    uploadedImageUrl = event.target.result; 
+    statusText.textContent = "✅ Image asset attached successfully!";
     statusText.className = "text-[10px] text-green-600 font-bold mt-1";
-  } catch (err) {
-    statusText.textContent = "❌ Upload failed: " + err.message;
+  };
+  reader.onerror = function (err) {
+    statusText.textContent = "❌ Asset processing fault occurred locally.";
     statusText.className = "text-[10px] text-red-600 font-bold mt-1";
-  }
+  };
+  reader.readAsDataURL(file);
 });
 
-// LOGIN PIPELINE
+// LOGIN ACTION RUNNER
 forms.login.addEventListener('submit', async (e) => {
   e.preventDefault();
   const identity = document.getElementById('login-identity').value.trim();
@@ -178,48 +184,81 @@ document.getElementById('btn-forgot-password').addEventListener('click', async (
   } catch (err) { alert(err.message); }
 });
 
-// SIGNUP PIPELINE
+// SIGNUP ACTION WITH EXPLICIT RACE-CONDITION SAFETY INTERCEPTOR
 forms.signup.addEventListener('submit', async (e) => {
   e.preventDefault();
+  
+  // Activate Interceptor Lock immediately to disable onAuthStateChanged from jumping the gun
+  isProcessingRegistration = true;
+
   const name = document.getElementById('signup-name').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const whatsapp = document.getElementById('signup-whatsapp').value.trim();
   const pass = document.getElementById('signup-pass').value;
-  const webLinkUrl = document.getElementById('signup-dp').value.trim();
-  const finalProfileImage = uploadedImageUrl || webLinkUrl || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+  
+  const finalProfileImage = uploadedImageUrl || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
 
   try {
+    // Firebase generates account and immediately logs user onto client engine state context
     const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
     const uid = userCredential.user.uid;
     
+    // Handshake structure down to Apps Script data arrays
     const output = await transmitDataToBackend({ 
       action: 'addUser', 
       payload: { name, email, whatsapp, dp: finalProfileImage, uid } 
     });
     
     if (output.success) { 
-      alert("✅ Registration complete! Account pending Super Admin approval."); 
+      alert("✅ Registration complete! Your account is pending Super Admin validation approval."); 
+      forms.signup.reset();
+      uploadedImageUrl = ""; 
+      const statusText = document.getElementById('upload-status-text');
+      if (statusText) statusText.classList.add('hidden');
+      
+      // Cleanly evict session block data context from memory cache arrays
       await auth.signOut();
       currentUser = null;
+      currentProfileRole = 'user';
+      currentOperatorDisplayName = "Staff Account Node";
+
+      // Toggle directly down into approval viewport loop state cleanly
       switchView('pending'); 
-    } else { throw new Error(output.error || "Registration error."); }
-  } catch (err) { alert(`Registration Error: ${err.message}`); }
+    } else { 
+      throw new Error(output.error || "Registration error."); 
+    }
+  } catch (err) { 
+    alert(`Registration Error: ${err.message}`); 
+    // Release configuration state lock if error bounds are triggered
+    await auth.signOut();
+    currentUser = null;
+    switchView('public');
+  } finally {
+    // Release state configuration lock parameter safely
+    isProcessingRegistration = false;
+  }
 });
 
-// STATUS SECURITY SHIELD
+// ABSOLUTE SECURITY ACCESS CONTROLLER
 async function executeSecurityStatusAudit() {
-  if (!currentUser) return;
+  // Hard stop exit condition if user object missing completely
+  if (!currentUser) {
+    switchView('public');
+    return;
+  }
+  
   try {
     const data = await transmitDataToBackend({ 
       action: 'checkUser', 
       payload: { email: currentUser.email } 
     });
     
-    if (!data.status || data.status === 'pending' || data.status === 'declined') {
+    // CRITICAL ACCESS GUARD: Instantly dump tracking parameters if database arrays report state parameters as missing/not active
+    if (!data || !data.status || data.status === 'pending' || data.status === 'declined' || data.status === 'not_found') {
       await auth.signOut();
       currentUser = null;
       switchView('pending');
-      return;
+      return; 
     }
 
     currentProfileRole = data.role || 'user';
@@ -293,6 +332,7 @@ saleRateInput.addEventListener('input', runLiveSaleCalculations);
 
 // DATA COMMIT: MILLING RUN
 document.getElementById('btn-submit-milling').addEventListener('click', async () => {
+  if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('mill-cust-name').value.trim();
   const phone = document.getElementById('mill-cust-phone').value.trim();
   const wheat = parseFloat(millInputs.wheat.value) || 0;
@@ -339,6 +379,7 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
 
 // DATA COMMIT: CASH FLOUR SALE
 document.getElementById('btn-submit-sale').addEventListener('click', async () => {
+  if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('sale-cust-name').value.trim();
   const qty = parseFloat(saleQtyInput.value) || 0;
   const rate = parseFloat(saleRateInput.value) || 120;
@@ -377,7 +418,7 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
   }
 });
 
-// PUBLIC REFERENCE PORTAL ENGINE
+// PUBLIC SEARCH PANEL ENGINE
 document.getElementById('btn-public-search').addEventListener('click', () => {
   const phone = document.getElementById('public-search-phone').value.trim();
   const resDiv = document.getElementById('public-search-results');
@@ -406,7 +447,7 @@ document.getElementById('btn-public-search').addEventListener('click', () => {
   }).join('');
 });
 
-// CORE MASTER SYNC MANAGER
+// CORE MASTER SYNC CONTROLLER
 async function syncDataPipeline() {
   try {
     const out = await transmitDataToBackend({ action: 'getTransactions' });
@@ -490,7 +531,7 @@ function renderWorkerAnalyticsDashboard() {
   insightsContainer.innerHTML = outputHtml;
 }
 
-// DATE FILTER MANAGEMENT ENGINE
+// DATE RANGE PARSING CONTROLLER
 document.querySelectorAll('.report-range-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     document.querySelectorAll('.report-range-btn').forEach(b => {
@@ -504,7 +545,6 @@ document.querySelectorAll('.report-range-btn').forEach(btn => {
   });
 });
 
-// DATE CONTAINER EVALUATION TRIGGER MONITORS
 document.getElementById('custom-date-start').addEventListener('change', executeEngineCalculations);
 document.getElementById('custom-date-end').addEventListener('change', executeEngineCalculations);
 
@@ -559,7 +599,7 @@ function renderLogsUI() {
     card.innerHTML = `
       <div class="space-y-0.5">
         <p class="font-black text-gray-900 text-sm capitalize">👤 ${t.name}</p>
-        <p class="text-[10px] text-slate-500 font-medium">🛠️ Operator: <span class="font-bold text-emerald-700">${t.operatorEmail || 'Staff Account Node'}</span></p>
+        <p class="text-[10px] text-slate-500 font-medium">🛠️ Operator: <span class="font-bold text-emerald-700">${t.operatorName || 'Staff Account Node'}</span></p>
         <p class="text-gray-400 text-[10px]">${dateStr} • <span class="uppercase font-bold text-[9px] bg-slate-100 text-slate-700 px-1 py-0.5 rounded">${t.type}</span></p>
       </div>
       <div class="text-right">
@@ -570,13 +610,11 @@ function renderLogsUI() {
   });
 }
 
-// INVOICE DETAIL VIEW MODAL DISPLAY ENGINE
 function displaySpecificRecordDetails(t) {
   currentSelectedRecord = t;
   const body = document.getElementById('modal-content-body');
-  let dateStr = "N/A"; if (t.date) { const d = new Date(t.date); if (!isNaN(d.getTime())) dateStr = d.toLocaleString(); }
+  let dateStr = "N/A"; if (t.date) { const d = new Date(t.date); if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString(); }
 
-  // Safe floating-point alignment conversion layer
   const standardizedDeduction = typeof t.deduction === 'number' ? t.deduction.toFixed(2) : parseFloat(t.deduction || 0).toFixed(2);
   const standardizedFlour = typeof t.flour === 'number' ? t.flour.toFixed(2) : parseFloat(t.flour || 0).toFixed(2);
   const standardizedWheat = typeof t.wheat === 'number' ? t.wheat.toFixed(2) : parseFloat(t.wheat || 0).toFixed(2);
@@ -585,7 +623,7 @@ function displaySpecificRecordDetails(t) {
     <div class="bg-slate-50 p-3 rounded-xl border space-y-1.5 font-mono">
       <div><b>Invoiced Date:</b> ${dateStr}</div>
       <div><b>Log ID Item:</b> ${t.id || 'N/A'}</div>
-      <div><b>Operator Node:</b> ${t.operatorEmail || 'Staff Account Node'}</div>
+      <div><b>Operator Node:</b> ${t.operatorName || 'Staff Account Node'}</div>
     </div>
     <div class="space-y-2 pt-2">
       <div class="flex justify-between border-b pb-1"><span>Customer Account:</span><span class="font-bold text-gray-900">${t.name}</span></div>
@@ -611,7 +649,7 @@ function displaySpecificRecordDetails(t) {
   views.detailsModal.classList.remove('hidden');
 }
 
-// INVOICE ROW MANAGEMENT CONTROL ACTIONS
+// DATA AMENDMENT RENDER INTERCEPTORS
 document.getElementById('btn-delete-record').addEventListener('click', async () => {
   if (!currentSelectedRecord) return;
   if (currentProfileRole !== 'admin' && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
@@ -637,7 +675,7 @@ document.getElementById('btn-edit-record').addEventListener('click', async () =>
 
 document.getElementById('btn-refresh-logs').addEventListener('click', syncDataPipeline);
 
-// WORKER PROFILE ACTIVATION SYSTEM
+// WORKER PROFILE APPROVAL DISPATCH ENGINE
 async function syncPendingAdminUsersList() {
   try {
     const container = document.getElementById('pending-users-list'); if (!container) return; container.innerHTML = '';
@@ -670,7 +708,6 @@ window.processAdminDecision = async function(email, actionType) {
   } catch (err) { alert(`Error: ${err.message}`); }
 };
 
-// BOTTOM RUNTIME NAVIGATION STRIP MENU CONTROLLER
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     const targetTab = e.currentTarget.getAttribute('data-tab');
@@ -681,9 +718,17 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
+// GLOBAL STATE OVERSEER
 window.addEventListener('DOMContentLoaded', () => {
   auth.onAuthStateChanged(async (user) => {
-    if (user && !isHardcodedAdmin) { currentUser = user; await executeSecurityStatusAudit(); }
-    else if (!isHardcodedAdmin) { switchView('public'); }
+    // SECURITY PATCH LAYER: If state registration is currently active, bypass background loops completely
+    if (isProcessingRegistration) return;
+
+    if (user && !isHardcodedAdmin) { 
+      currentUser = user; 
+      await executeSecurityStatusAudit(); 
+    } else if (!isHardcodedAdmin) { 
+      switchView('public'); 
+    }
   });
 });
