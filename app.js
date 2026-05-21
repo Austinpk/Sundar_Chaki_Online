@@ -19,7 +19,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
 // Production API Web App Target Mapping Reference
-const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbwvVLFASmRXPadYlOI7n9dOMTmPTURdpcXbbxeDE4AqdyDCcJwrESwBEd_vXXpsLJ4E/exec";
+const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbyVOT8BIv3D6A3gaNJ4drQE-hwif9DHJR2liFfq0GcuJnBZ1WKfRTi43iYUWOxm90b1/exec";
 
 let currentUser = null;
 let currentProfileRole = 'user';
