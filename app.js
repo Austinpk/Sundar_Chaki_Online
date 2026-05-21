@@ -19,7 +19,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
 // Production API Web App Target Mapping Reference
-const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbyVOT8BIv3D6A3gaNJ4drQE-hwif9DHJR2liFfq0GcuJnBZ1WKfRTi43iYUWOxm90b1/exec";
+const GOOGLE_APPS_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbwBiFhBQVSc8vAWDCYnN2cpWMR2l3ylHnaP2GO_jyTcbUggsGo8xQz025dX6vFZM0c9/exec";
 
 let currentUser = null;
 let currentProfileRole = 'user';
@@ -126,25 +126,31 @@ document.getElementById('form-tab-sales').addEventListener('click', (e) => {
   e.target.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm';
 });
 
-// LOCAL FILE TO BASE64 PARSER STRIPPER
+// LOCAL FILE TO BASE64 PARSER STRIPPER (UPDATED WITH BUTTON LOCKDOWN)
 document.getElementById('signup-file-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
   const statusText = document.getElementById('upload-status-text');
+  const signupBtn = forms.signup.querySelector('button[type="submit"]') || document.getElementById('btn-submit-signup');
+  
   statusText.classList.remove('hidden');
   statusText.className = "text-[10px] text-amber-600 font-bold mt-1";
   statusText.textContent = "⌛ Processing profile photo structure...";
+  
+  if (signupBtn) signupBtn.disabled = true; // Lock button immediately
 
   const reader = new FileReader();
   reader.onload = function (event) {
     uploadedImageUrl = event.target.result; 
-    statusText.textContent = "✅ Image asset attached successfully!";
+    statusText.textContent = "✅ Image asset verified and locked in!";
     statusText.className = "text-[10px] text-green-600 font-bold mt-1";
+    if (signupBtn) signupBtn.disabled = false; // Unlock button safely
   };
   reader.onerror = function (err) {
     statusText.textContent = "❌ Asset processing fault occurred locally.";
     statusText.className = "text-[10px] text-red-600 font-bold mt-1";
+    if (signupBtn) signupBtn.disabled = false;
   };
   reader.readAsDataURL(file);
 });
@@ -188,6 +194,11 @@ document.getElementById('btn-forgot-password').addEventListener('click', async (
 forms.signup.addEventListener('submit', async (e) => {
   e.preventDefault();
   
+  if (!uploadedImageUrl) {
+    alert("❌ Please select and wait for your profile picture to process before registering.");
+    return;
+  }
+  
   // Activate Interceptor Lock immediately to disable onAuthStateChanged from jumping the gun
   isProcessingRegistration = true;
 
@@ -195,8 +206,6 @@ forms.signup.addEventListener('submit', async (e) => {
   const email = document.getElementById('signup-email').value.trim();
   const whatsapp = document.getElementById('signup-whatsapp').value.trim();
   const pass = document.getElementById('signup-pass').value;
-  
-  const finalProfileImage = uploadedImageUrl || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
 
   try {
     // Firebase generates account and immediately logs user onto client engine state context
@@ -206,7 +215,7 @@ forms.signup.addEventListener('submit', async (e) => {
     // Handshake structure down to Apps Script data arrays
     const output = await transmitDataToBackend({ 
       action: 'addUser', 
-      payload: { name, email, whatsapp, dp: finalProfileImage, uid } 
+      payload: { name, email, whatsapp, dp: uploadedImageUrl, uid } 
     });
     
     if (output.success) { 
@@ -330,9 +339,9 @@ function runLiveSaleCalculations() {
 saleQtyInput.addEventListener('input', runLiveSaleCalculations);
 saleRateInput.addEventListener('input', runLiveSaleCalculations);
 
-// DATA COMMIT: MILLING RUN
+// DATA COMMIT: MILLING RUN (UPDATED WITH EXPLICIT NULL-SAFEGUARDS)
 document.getElementById('btn-submit-milling').addEventListener('click', async () => {
-  if (!currentUser) return alert("Session expired. Please log in again.");
+  if (!currentUser || !currentUser.uid) return alert("❌ Session expired or profile state invalid. Please log in again.");
   const name = document.getElementById('mill-cust-name').value.trim();
   const phone = document.getElementById('mill-cust-phone').value.trim();
   const wheat = parseFloat(millInputs.wheat.value) || 0;
@@ -373,13 +382,13 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-milling');
-    btn.disabled = false; btn.innerText = "💾 Save Milling Run";
+    if (btn) { btn.disabled = false; btn.innerText = "💾 Save Milling Run"; }
   }
 });
 
-// DATA COMMIT: CASH FLOUR SALE
+// DATA COMMIT: CASH FLOUR SALE (UPDATED WITH EXPLICIT NULL-SAFEGUARDS)
 document.getElementById('btn-submit-sale').addEventListener('click', async () => {
-  if (!currentUser) return alert("Session expired. Please log in again.");
+  if (!currentUser || !currentUser.uid) return alert("❌ Session expired or profile state invalid. Please log in again.");
   const name = document.getElementById('sale-cust-name').value.trim();
   const qty = parseFloat(saleQtyInput.value) || 0;
   const rate = parseFloat(saleRateInput.value) || 120;
@@ -414,7 +423,7 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-sale');
-    btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
+    if (btn) { btn.disabled = false; btn.innerText = "💾 Record Cash Sale"; }
   }
 });
 
@@ -447,7 +456,7 @@ document.getElementById('btn-public-search').addEventListener('click', () => {
   }).join('');
 });
 
-// CORE MASTER SYNC CONTROLLER
+// CORE MASTER SYNC CONTROLLER (WITH INSTANT NULL PIPELINE PROTECTIONS)
 async function syncDataPipeline() {
   try {
     const out = await transmitDataToBackend({ action: 'getTransactions' });
@@ -459,7 +468,14 @@ async function syncDataPipeline() {
       await syncPendingAdminUsersList();
       renderWorkerAnalyticsDashboard();
     } else {
-      transactions = allData.filter(t => String(t.uid).trim().toLowerCase() === String(currentUser.uid).trim().toLowerCase());
+      // Strict Null Shielding: Stops reading from a null user if state shifted in the background
+      if (!currentUser || !currentUser.uid) {
+        console.warn("Pipeline synchronization halted: No active authenticated user profile context.");
+        return;
+      }
+      transactions = allData.filter(t => 
+        t && t.uid && String(t.uid).trim().toLowerCase() === String(currentUser.uid).trim().toLowerCase()
+      );
     }
     
     executeEngineCalculations();
@@ -492,7 +508,7 @@ function renderWorkerAnalyticsDashboard() {
   }
 
   globalWorkersList.forEach(worker => {
-    const workerTxns = transactions.filter(t => String(t.uid).trim().toLowerCase() === String(worker.uid).trim().toLowerCase());
+    const workerTxns = transactions.filter(t => t && t.uid && String(t.uid).trim().toLowerCase() === String(worker.uid).trim().toLowerCase());
     const totalCustomers = new Set(workerTxns.map(t => t.phone)).size;
     
     const weeklyTxns = workerTxns.filter(t => new Date(t.date) >= oneWeekAgo);
@@ -551,7 +567,7 @@ document.getElementById('custom-date-end').addEventListener('change', executeEng
 function executeEngineCalculations() {
   const now = new Date();
   const filtered = transactions.filter(t => {
-    if (!t.date) return false;
+    if (!t || !t.date) return false;
     const d = new Date(t.date);
     if (isNaN(d.getTime())) return false; 
     if (activeRange === 'daily') return d.toDateString() === now.toDateString();
@@ -589,7 +605,7 @@ function renderLogsUI() {
   }
 
   transactions.forEach((t) => {
-    if (!t.name || (!t.cash && !t.flour && !t.wheat)) return;
+    if (!t || !t.name || (!t.cash && !t.flour && !t.wheat)) return;
     const card = document.createElement('div');
     card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center text-xs active:bg-gray-100 cursor-pointer transition-all hover:border-emerald-200 mb-2";
     card.addEventListener('click', () => displaySpecificRecordDetails(t));
@@ -611,6 +627,7 @@ function renderLogsUI() {
 }
 
 function displaySpecificRecordDetails(t) {
+  if (!t) return;
   currentSelectedRecord = t;
   const body = document.getElementById('modal-content-body');
   let dateStr = "N/A"; if (t.date) { const d = new Date(t.date); if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString(); }
@@ -652,7 +669,7 @@ function displaySpecificRecordDetails(t) {
 // DATA AMENDMENT RENDER INTERCEPTORS
 document.getElementById('btn-delete-record').addEventListener('click', async () => {
   if (!currentSelectedRecord) return;
-  if (currentProfileRole !== 'admin' && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
+  if (currentProfileRole !== 'admin' && currentUser && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
   if (!confirm(`Permanently drop record?`)) return;
   try {
     document.getElementById('btn-delete-record').disabled = true;
@@ -664,7 +681,7 @@ document.getElementById('btn-delete-record').addEventListener('click', async () 
 
 document.getElementById('btn-edit-record').addEventListener('click', async () => {
   if (!currentSelectedRecord) return;
-  if (currentProfileRole !== 'admin' && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
+  if (currentProfileRole !== 'admin' && currentUser && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
   const newName = prompt("Modify Customer Name:", currentSelectedRecord.name); if (!newName) return;
   const newPhone = prompt("Modify Phone Reference:", currentSelectedRecord.phone); if (!newPhone) return;
   try {
