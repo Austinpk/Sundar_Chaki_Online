@@ -1,7 +1,7 @@
 /**
  * Sundar Sehat Ata - Production Frontend Application Logic
  * Full Feature Set (Security Shield Patches, Worker Analytics, Custom Dates & Rounding)
- * Hotfixes applied: Interceptor locks on Firebase auto-login race conditions, Base64 validation.
+ * Hotfixes applied: Interceptor locks on Firebase auto-login race conditions, Base64 optimization, Client-Side Compression downscaler.
  */
 
 const firebaseConfig = {
@@ -55,6 +55,7 @@ const tabs = {
   expenses: document.getElementById('tab-expenses')
 };
 
+// Standard data post method
 async function transmitDataToBackend(actionPayload) {
   const response = await fetch(GOOGLE_APPS_SCRIPT_API_URL, {
     method: 'POST',
@@ -64,6 +65,203 @@ async function transmitDataToBackend(actionPayload) {
   });
   if (!response.ok) throw new Error(`Network status fault: ${response.status}`);
   return await response.json();
+}
+
+// REAL-TIME PROGRESS TRANSMISSION CONTROLLER
+// fetch() is used instead of XHR because Google Apps Script responds with a 302 cross-origin
+// redirect that XHR cannot follow — causing "Network connection breakdown" errors.
+// Real upload progress is impossible cross-origin, so progress is simulated.
+function transmitDataWithProgress(actionPayload, onProgressCallback) {
+  return new Promise(async (resolve, reject) => {
+    let fakeProgress = 0;
+    let progressInterval = null;
+    try {
+      progressInterval = setInterval(() => {
+        fakeProgress = Math.min(fakeProgress + 12, 90);
+        onProgressCallback(fakeProgress);
+      }, 350);
+
+      const response = await fetch(GOOGLE_APPS_SCRIPT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(actionPayload),
+        redirect: 'follow'
+      });
+
+      clearInterval(progressInterval);
+      progressInterval = null;
+
+      if (!response.ok) {
+        reject(new Error(`Server Status Error Node: ${response.status}`));
+        return;
+      }
+
+      onProgressCallback(100);
+
+      try {
+        const data = await response.json();
+        resolve(data);
+      } catch (parseErr) {
+        reject(new Error("Failed to clear server response text context."));
+      }
+    } catch (err) {
+      if (progressInterval) clearInterval(progressInterval);
+      reject(new Error("Registration failed. Please check your internet connection and try again."));
+    }
+  });
+}
+
+// DRIVE URL NORMALIZER — converts any Google Drive URL format into a direct thumbnail
+// that works inside <img> src tags without authentication or redirect issues.
+function normalizeDriveImageUrl(url) {
+  if (!url) return "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+  if (url.indexOf('flaticon.com') > -1) return url; // already a fallback CDN avatar
+
+  let fileId = null;
+
+  // Format: https://docs.google.com/uc?export=download&id=FILE_ID
+  if (url.indexOf('uc?export=download') > -1 || url.indexOf('uc?id=') > -1) {
+    const match = url.match(/[?&]id=([^&]+)/);
+    if (match) fileId = match[1];
+  }
+
+  // Format: https://drive.google.com/file/d/FILE_ID/view
+  if (!fileId && url.indexOf('/file/d/') > -1) {
+    const match = url.match(/\/file\/d\/([^/]+)/);
+    if (match) fileId = match[1];
+  }
+
+  // Format: https://drive.google.com/open?id=FILE_ID
+  if (!fileId && url.indexOf('open?id=') > -1) {
+    const match = url.match(/open\?id=([^&]+)/);
+    if (match) fileId = match[1];
+  }
+
+  // Already a thumbnail URL — return as-is
+  if (!fileId && url.indexOf('thumbnail?id=') > -1) return url;
+
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+  }
+
+  // Unknown format — return original and hope for the best
+  return url;
+}
+
+// ============================================================
+// WHATSAPP RECEIPT DISPATCHER
+// Builds formatted Urdu/English receipt and opens WhatsApp.
+// Uses a hidden <a> click instead of window.open() because
+// browsers BLOCK window.open() called after async/await —
+// it is no longer considered a direct user gesture.
+// A hidden anchor click is not blocked the same way.
+// ============================================================
+
+function buildMillingReceiptText(data) {
+  const date = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  const strategyLabel = data.strategy === 'deduct' ? 'آٹا کٹوتی (Flour Deduct)' : 'نقد ادائیگی (Cash Payment)';
+  return [
+    `🌾 *Sundar Sehat Ata - گندم پسائی رسید*`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `📅 تاریخ: ${date}  ⏰ ${time}`,
+    `👤 گاہک: ${data.name}`,
+    `📞 رابطہ: ${data.phone}`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `⚖️ گندم وزن: *${data.wheat} KG*`,
+    `💰 ادائیگی طریقہ: ${strategyLabel}`,
+    `📉 کٹوتی (10%): *${data.deduction} KG*`,
+    `📦 پیشگی وصول: *${data.pickup} KG*`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `✅ *آٹا باقی: ${data.flour} KG*`,
+    data.cash > 0 ? `💵 *نقد رقم: PKR ${data.cash}*` : '',
+    `━━━━━━━━━━━━━━━━━━━`,
+    `🛠️ آپریٹر: ${data.operatorName}`,
+    `شکریہ! آپ کی خدمت ہماری ذمہ داری ہے 🙏  Developed By Naveed +923481496487`
+  ].filter(Boolean).join('\n');
+}
+
+function buildSaleReceiptText(data) {
+  const date = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  return [
+    `🌾 *Sundar Sehat Ata - آٹا فروخت رسید*`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `📅 تاریخ: ${date}  ⏰ ${time}`,
+    `👤 گاہک: ${data.name}`,
+    `📞 رابطہ: ${data.phone}`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `🛍️ آٹا مقدار: *${data.flour} KG*`,
+    `💲 قیمت فی KG: PKR ${data.rate}`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `💵 *کل رقم: PKR ${data.cash}*`,
+    `━━━━━━━━━━━━━━━━━━━`,
+    `🛠️ آپریٹر: ${data.operatorName}`,
+    `شکریہ! آپ کی خدمت ہماری ذمہ داری ہے 🙏`
+  ].join('\n');
+}
+
+function dispatchWhatsAppReceipt(phone, receiptText) {
+  // Normalize Pakistani number: 03001234567 → 923001234567
+  let normalized = phone.replace(/\D/g, '');
+  if (normalized.startsWith('0')) {
+    normalized = '92' + normalized.slice(1);
+  } else if (!normalized.startsWith('92')) {
+    normalized = '92' + normalized;
+  }
+  const waUrl = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+
+  // Hidden anchor click — bypasses popup blocker restrictions on async calls.
+  // On mobile the OS intercepts wa.me and opens WhatsApp app directly.
+  const a = document.createElement('a');
+  a.href = waUrl;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => document.body.removeChild(a), 1000);
+}
+
+// HIGH-SPEED CLIENT SIDE COMPRESSION DOWN-SCALER LOGIC
+function compressAndResizeImage(file, maxWidth, maxHeight, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Proportional scale checking rule constraints
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Export compressed image mapping matrix block
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => reject(new Error("Image initialization failed."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("File stream parsing loop broken."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function switchView(target) {
@@ -126,33 +324,31 @@ document.getElementById('form-tab-sales').addEventListener('click', (e) => {
   e.target.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm';
 });
 
-// LOCAL FILE TO BASE64 PARSER STRIPPER (UPDATED WITH BUTTON LOCKDOWN)
-document.getElementById('signup-file-input').addEventListener('change', (e) => {
+// COMPRESSION INTEGRATION PICKER ENGINE
+document.getElementById('signup-file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
   const statusText = document.getElementById('upload-status-text');
-  const signupBtn = forms.signup.querySelector('button[type="submit"]') || document.getElementById('btn-submit-signup');
+  const submitBtn = forms.signup.querySelector('button[type="submit"]');
   
   statusText.classList.remove('hidden');
   statusText.className = "text-[10px] text-amber-600 font-bold mt-1";
-  statusText.textContent = "⌛ Processing profile photo structure...";
+  statusText.textContent = "⌛ Optimizing and compressing image file data...";
   
-  if (signupBtn) signupBtn.disabled = true; // Lock button immediately
+  if (submitBtn) submitBtn.disabled = true;
 
-  const reader = new FileReader();
-  reader.onload = function (event) {
-    uploadedImageUrl = event.target.result; 
-    statusText.textContent = "✅ Image asset verified and locked in!";
+  try {
+    // Resize down to max 800px width/height boundaries at 70% quality factor
+    uploadedImageUrl = await compressAndResizeImage(file, 800, 800, 0.7); 
+    statusText.textContent = "✅ Photo scaled & verified safely for submission transmission!";
     statusText.className = "text-[10px] text-green-600 font-bold mt-1";
-    if (signupBtn) signupBtn.disabled = false; // Unlock button safely
-  };
-  reader.onerror = function (err) {
-    statusText.textContent = "❌ Asset processing fault occurred locally.";
+  } catch (err) {
+    statusText.textContent = "❌ Asset compression matrix execution fault.";
     statusText.className = "text-[10px] text-red-600 font-bold mt-1";
-    if (signupBtn) signupBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false; 
+  }
 });
 
 // LOGIN ACTION RUNNER
@@ -190,16 +386,15 @@ document.getElementById('btn-forgot-password').addEventListener('click', async (
   } catch (err) { alert(err.message); }
 });
 
-// SIGNUP ACTION WITH EXPLICIT RACE-CONDITION SAFETY INTERCEPTOR
+// SIGNUP ACTION WITH INTEGRATED STREAMS PROGRESS MAPPING
 forms.signup.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   if (!uploadedImageUrl) {
-    alert("❌ Please select and wait for your profile picture to process before registering.");
+    alert("❌ Please attach a profile image asset block first.");
     return;
   }
   
-  // Activate Interceptor Lock immediately to disable onAuthStateChanged from jumping the gun
   isProcessingRegistration = true;
 
   const name = document.getElementById('signup-name').value.trim();
@@ -207,50 +402,80 @@ forms.signup.addEventListener('submit', async (e) => {
   const whatsapp = document.getElementById('signup-whatsapp').value.trim();
   const pass = document.getElementById('signup-pass').value;
 
+  const progressContainer = document.getElementById('upload-progress-container');
+  const progressBar = document.getElementById('upload-progress-bar');
+  const statusText = document.getElementById('upload-status-text');
+  const submitBtn = forms.signup.querySelector('button[type="submit"]');
+
+  if (progressContainer && progressBar && statusText) {
+    progressContainer.classList.remove('hidden');
+    progressBar.style.width = '0%';
+    statusText.classList.remove('hidden');
+    statusText.className = "text-[10px] text-emerald-600 font-bold mt-1";
+    statusText.textContent = "🚀 Connecting to server data pipeline... 0%";
+  }
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Uploading data...";
+  }
+
   try {
-    // Firebase generates account and immediately logs user onto client engine state context
     const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
     const uid = userCredential.user.uid;
     
-    // Handshake structure down to Apps Script data arrays
-    const output = await transmitDataToBackend({ 
+    // Dispatch compressed request sequence payload out safely
+    const output = await transmitDataWithProgress({ 
       action: 'addUser', 
       payload: { name, email, whatsapp, dp: uploadedImageUrl, uid } 
+    }, (percentage) => {
+      if (progressBar && statusText) {
+        progressBar.style.width = percentage + '%';
+        if (percentage < 100) {
+          statusText.textContent = `🚀 Uploading profile asset to system: ${percentage}%`;
+        } else {
+          statusText.className = "text-[10px] text-amber-600 font-bold mt-1";
+          statusText.textContent = `(Finalizing) 100% Uploaded! Saving image file inside Google Drive...`;
+        }
+      }
     });
     
     if (output.success) { 
       alert("✅ Registration complete! Your account is pending Super Admin validation approval."); 
       forms.signup.reset();
       uploadedImageUrl = ""; 
-      const statusText = document.getElementById('upload-status-text');
       if (statusText) statusText.classList.add('hidden');
+      if (progressContainer) progressContainer.classList.add('hidden');
       
-      // Cleanly evict session block data context from memory cache arrays
       await auth.signOut();
       currentUser = null;
       currentProfileRole = 'user';
       currentOperatorDisplayName = "Staff Account Node";
 
-      // Toggle directly down into approval viewport loop state cleanly
       switchView('pending'); 
     } else { 
       throw new Error(output.error || "Registration error."); 
     }
   } catch (err) { 
     alert(`Registration Error: ${err.message}`); 
-    // Release configuration state lock if error bounds are triggered
+    if (progressContainer) progressContainer.classList.add('hidden');
+    if (statusText) {
+      statusText.textContent = "❌ File transmission terminated.";
+      statusText.className = "text-[10px] text-red-600 font-bold mt-1";
+    }
     await auth.signOut();
     currentUser = null;
     switchView('public');
   } finally {
-    // Release state configuration lock parameter safely
     isProcessingRegistration = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Send Request";
+    }
   }
 });
 
 // ABSOLUTE SECURITY ACCESS CONTROLLER
 async function executeSecurityStatusAudit() {
-  // Hard stop exit condition if user object missing completely
   if (!currentUser) {
     switchView('public');
     return;
@@ -262,7 +487,6 @@ async function executeSecurityStatusAudit() {
       payload: { email: currentUser.email } 
     });
     
-    // CRITICAL ACCESS GUARD: Instantly dump tracking parameters if database arrays report state parameters as missing/not active
     if (!data || !data.status || data.status === 'pending' || data.status === 'declined' || data.status === 'not_found') {
       await auth.signOut();
       currentUser = null;
@@ -272,7 +496,7 @@ async function executeSecurityStatusAudit() {
 
     currentProfileRole = data.role || 'user';
     currentOperatorDisplayName = data.name || "Staff Account Node"; 
-    document.getElementById('user-avatar-top').src = data.dp || "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+    document.getElementById('user-avatar-top').src = normalizeDriveImageUrl(data.dp);
     document.getElementById('user-display-role').textContent = `👤 ${currentOperatorDisplayName}`;
     
     if (currentProfileRole === 'admin') document.getElementById('super-admin-panel').classList.remove('hidden');
@@ -339,15 +563,16 @@ function runLiveSaleCalculations() {
 saleQtyInput.addEventListener('input', runLiveSaleCalculations);
 saleRateInput.addEventListener('input', runLiveSaleCalculations);
 
-// DATA COMMIT: MILLING RUN (UPDATED WITH EXPLICIT NULL-SAFEGUARDS)
+// DATA COMMIT: MILLING RUN
 document.getElementById('btn-submit-milling').addEventListener('click', async () => {
-  if (!currentUser || !currentUser.uid) return alert("❌ Session expired or profile state invalid. Please log in again.");
+  if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('mill-cust-name').value.trim();
   const phone = document.getElementById('mill-cust-phone').value.trim();
   const wheat = parseFloat(millInputs.wheat.value) || 0;
   const pickup = parseFloat(millInputs.pickup.value) || 0;
   const rate = parseFloat(millInputs.rate.value) || 120;
   const strategy = millInputs.strategy.value;
+  const sendWhatsApp = document.getElementById('chk-whatsapp-milling').checked;
 
   if (!name) return alert("❌ Specify Customer Name.");
   if (!phone || phone.length < 10) return alert("❌ Valid mobile contact number required.");
@@ -356,6 +581,14 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   const deduction = parseFloat((wheat * 0.10).toFixed(2));
   const cashVal = strategy === 'cash' ? parseFloat((deduction * rate).toFixed(2)) : 0;
   const finalFlour = parseFloat((strategy === 'deduct' ? (wheat - deduction - pickup) : (wheat - pickup)).toFixed(2));
+
+  // Build receipt BEFORE async save — keeps it linked to the user gesture
+  // so the anchor click is not treated as an unprompted popup by the browser.
+  const receiptText = sendWhatsApp ? buildMillingReceiptText({
+    name, phone, wheat, pickup, strategy,
+    deduction, cash: cashVal, flour: finalFlour,
+    rate, operatorName: currentOperatorDisplayName
+  }) : null;
 
   try {
     const btn = document.getElementById('btn-submit-milling');
@@ -372,31 +605,48 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
     });
 
     if (status.success) {
-      alert("✅ Milling run updated successfully.");
+      // Reset fields first
       document.getElementById('mill-cust-name').value = '';
       document.getElementById('mill-cust-phone').value = '';
       millInputs.wheat.value = '';
       millInputs.pickup.value = '0';
+      runLiveMillingCalculations();
       await syncDataPipeline();
+
+      // Open WhatsApp if checkbox was ticked — no alert shown when sending receipt
+      if (sendWhatsApp && receiptText) {
+        dispatchWhatsAppReceipt(phone, receiptText);
+      } else {
+        alert("✅ Milling run updated successfully.");
+      }
     } else { alert("Error writing entry: " + status.error); }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-milling');
-    if (btn) { btn.disabled = false; btn.innerText = "💾 Save Milling Run"; }
+    btn.disabled = false; btn.innerText = "💾 Save Milling Run گندم پسائی محفوظ کریں";
   }
 });
 
-// DATA COMMIT: CASH FLOUR SALE (UPDATED WITH EXPLICIT NULL-SAFEGUARDS)
+// DATA COMMIT: CASH FLOUR SALE
 document.getElementById('btn-submit-sale').addEventListener('click', async () => {
-  if (!currentUser || !currentUser.uid) return alert("❌ Session expired or profile state invalid. Please log in again.");
+  if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('sale-cust-name').value.trim();
   const qty = parseFloat(saleQtyInput.value) || 0;
   const rate = parseFloat(saleRateInput.value) || 120;
   const phone = document.getElementById('sale-cust-phone').value.trim();
+  const sendWhatsApp = document.getElementById('chk-whatsapp-sale').checked;
 
   if (!name) return alert("❌ Customer Name required.");
   if (!phone || phone.length < 10) return alert("❌ Valid contact mobile line sequence required.");
   if (isNaN(qty) || qty <= 0) return alert("❌ Sale volume must exceed 0 KG.");
+
+  const cashVal = parseFloat((qty * rate).toFixed(2));
+
+  // Build receipt BEFORE async save — keeps it linked to user gesture
+  const receiptText = sendWhatsApp ? buildSaleReceiptText({
+    name, phone, flour: qty, rate, cash: cashVal,
+    operatorName: currentOperatorDisplayName
+  }) : null;
 
   try {
     const btn = document.getElementById('btn-submit-sale');
@@ -408,22 +658,29 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
         uid: currentUser.uid.trim(), 
         operatorName: currentOperatorDisplayName, 
         type: 'sale', 
-        name, flour: qty, rate, cash: parseFloat((qty * rate).toFixed(2)), phone 
+        name, flour: qty, rate, cash: cashVal, phone 
       }
     });
 
     if (status.success) {
-      alert("✅ Flour Cash Sale logged!");
+      // Reset fields first
       document.getElementById('sale-cust-name').value = '';
       saleQtyInput.value = '';
       document.getElementById('sale-cust-phone').value = '';
       document.getElementById('calc-sale-bill').textContent = "PKR 0";
       await syncDataPipeline();
+
+      // Open WhatsApp if checkbox was ticked — no alert shown when sending receipt
+      if (sendWhatsApp && receiptText) {
+        dispatchWhatsAppReceipt(phone, receiptText);
+      } else {
+        alert("✅ Flour Cash Sale logged!");
+      }
     } else { alert("Error saving log: " + status.error); }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-sale');
-    if (btn) { btn.disabled = false; btn.innerText = "💾 Record Cash Sale"; }
+    btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
   }
 });
 
@@ -456,7 +713,7 @@ document.getElementById('btn-public-search').addEventListener('click', () => {
   }).join('');
 });
 
-// CORE MASTER SYNC CONTROLLER (WITH INSTANT NULL PIPELINE PROTECTIONS)
+// CORE MASTER SYNC CONTROLLER
 async function syncDataPipeline() {
   try {
     const out = await transmitDataToBackend({ action: 'getTransactions' });
@@ -468,14 +725,7 @@ async function syncDataPipeline() {
       await syncPendingAdminUsersList();
       renderWorkerAnalyticsDashboard();
     } else {
-      // Strict Null Shielding: Stops reading from a null user if state shifted in the background
-      if (!currentUser || !currentUser.uid) {
-        console.warn("Pipeline synchronization halted: No active authenticated user profile context.");
-        return;
-      }
-      transactions = allData.filter(t => 
-        t && t.uid && String(t.uid).trim().toLowerCase() === String(currentUser.uid).trim().toLowerCase()
-      );
+      transactions = allData.filter(t => String(t.uid).trim().toLowerCase() === String(currentUser.uid).trim().toLowerCase());
     }
     
     executeEngineCalculations();
@@ -508,7 +758,7 @@ function renderWorkerAnalyticsDashboard() {
   }
 
   globalWorkersList.forEach(worker => {
-    const workerTxns = transactions.filter(t => t && t.uid && String(t.uid).trim().toLowerCase() === String(worker.uid).trim().toLowerCase());
+    const workerTxns = transactions.filter(t => String(t.uid).trim().toLowerCase() === String(worker.uid).trim().toLowerCase());
     const totalCustomers = new Set(workerTxns.map(t => t.phone)).size;
     
     const weeklyTxns = workerTxns.filter(t => new Date(t.date) >= oneWeekAgo);
@@ -567,7 +817,7 @@ document.getElementById('custom-date-end').addEventListener('change', executeEng
 function executeEngineCalculations() {
   const now = new Date();
   const filtered = transactions.filter(t => {
-    if (!t || !t.date) return false;
+    if (!t.date) return false;
     const d = new Date(t.date);
     if (isNaN(d.getTime())) return false; 
     if (activeRange === 'daily') return d.toDateString() === now.toDateString();
@@ -605,7 +855,7 @@ function renderLogsUI() {
   }
 
   transactions.forEach((t) => {
-    if (!t || !t.name || (!t.cash && !t.flour && !t.wheat)) return;
+    if (!t.name || (!t.cash && !t.flour && !t.wheat)) return;
     const card = document.createElement('div');
     card.className = "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center text-xs active:bg-gray-100 cursor-pointer transition-all hover:border-emerald-200 mb-2";
     card.addEventListener('click', () => displaySpecificRecordDetails(t));
@@ -627,7 +877,6 @@ function renderLogsUI() {
 }
 
 function displaySpecificRecordDetails(t) {
-  if (!t) return;
   currentSelectedRecord = t;
   const body = document.getElementById('modal-content-body');
   let dateStr = "N/A"; if (t.date) { const d = new Date(t.date); if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString(); }
@@ -669,7 +918,7 @@ function displaySpecificRecordDetails(t) {
 // DATA AMENDMENT RENDER INTERCEPTORS
 document.getElementById('btn-delete-record').addEventListener('click', async () => {
   if (!currentSelectedRecord) return;
-  if (currentProfileRole !== 'admin' && currentUser && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
+  if (currentProfileRole !== 'admin' && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
   if (!confirm(`Permanently drop record?`)) return;
   try {
     document.getElementById('btn-delete-record').disabled = true;
@@ -681,7 +930,7 @@ document.getElementById('btn-delete-record').addEventListener('click', async () 
 
 document.getElementById('btn-edit-record').addEventListener('click', async () => {
   if (!currentSelectedRecord) return;
-  if (currentProfileRole !== 'admin' && currentUser && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
+  if (currentProfileRole !== 'admin' && currentSelectedRecord.uid !== currentUser.uid) return alert("Security Guard: Access denied.");
   const newName = prompt("Modify Customer Name:", currentSelectedRecord.name); if (!newName) return;
   const newPhone = prompt("Modify Phone Reference:", currentSelectedRecord.phone); if (!newPhone) return;
   try {
@@ -702,7 +951,7 @@ async function syncPendingAdminUsersList() {
       const row = document.createElement('div'); row.className = "bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 text-left mb-2";
       row.innerHTML = `
         <div class="flex items-start gap-3">
-          <img src="${u.dp || 'https://cdn-icons-png.flaticon.com/512/847/847969.png'}" class="w-10 h-10 rounded-full border object-cover shrink-0">
+          <img src="${normalizeDriveImageUrl(u.dp)}" class="w-10 h-10 rounded-full border object-cover shrink-0">
           <div class="min-w-0 flex-1">
             <p class="font-bold text-gray-800 text-sm truncate">${u.name || 'Staff'}</p>
             <p class="text-[11px] text-gray-600 font-mono break-all"><b>Email:</b> ${u.email}</p>
@@ -738,7 +987,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 // GLOBAL STATE OVERSEER
 window.addEventListener('DOMContentLoaded', () => {
   auth.onAuthStateChanged(async (user) => {
-    // SECURITY PATCH LAYER: If state registration is currently active, bypass background loops completely
     if (isProcessingRegistration) return;
 
     if (user && !isHardcodedAdmin) { 
