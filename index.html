@@ -4,13 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sundar Sehat Ata - Advanced Chaki Management</title>
+  
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            urdu: ['"Jameel Noori Nastaleeq"', '"Noto Nastaliq Urdu"', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
   <style>
     body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     .scroll-container { -webkit-overflow-scrolling: touch; overflow-y: auto; }
+    
+    @font-face {
+      font-family: 'Jameel Noori Nastaleeq';
+      src: url('https://cdn.jsdelivr.net/gh/tariq-abdullah/urdu-web-font-CDN/JameelNooriNastaleeq.woff') format('woff');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col relative">
@@ -100,6 +123,11 @@
           <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Profile Photo File Asset</label>
           <input id="signup-file-input" type="file" accept="image/*" class="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-semibold file:bg-green-50 file:text-green-700">
           <p id="upload-status-text" class="text-[10px] text-orange-600 font-medium mt-1 hidden"></p>
+          
+          <div id="upload-progress-container" class="w-full bg-gray-100 rounded-full h-2 mt-2 hidden overflow-hidden border border-gray-200/50">
+            <div id="upload-progress-bar" class="bg-gradient-to-r from-emerald-500 to-green-600 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
+          </div>
+          
           <input id="signup-dp" type="url" placeholder="Or paste image web link reference" class="w-full p-2 mt-1.5 border rounded-xl text-[11px]">
         </div>
         <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold text-xs transition-all shadow-md">Send Request</button>
@@ -107,8 +135,7 @@
     </div>
   </div>
 
-  <!-- PENDING VIEW - MODIFIED -->
-<div id="pending-view" class="min-h-screen bg-white flex flex-col items-center justify-center p-6 hidden">
+  <div id="pending-view" class="min-h-screen bg-white flex flex-col items-center justify-center p-6 hidden">
     <div class="text-center space-y-6 max-w-sm">
         <div class="w-20 h-20 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center text-4xl mx-auto animate-pulse">⏳</div>
         <div>
@@ -116,7 +143,6 @@
             <p class="text-[10px] text-gray-500 mt-2 leading-tight">Your account is pending validation by the system owner.</p>
         </div>
         
-        <!-- ADMIN CONTACT CARD -->
         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left">
             <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Contact Admin for Instant Access</p>
             <div class="flex items-center gap-3">
@@ -134,7 +160,8 @@
         
         <button id="btn-pending-logout" class="w-full mt-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl text-xs active:scale-95 transition-all border border-red-100">Sign Out</button>
     </div>
-</div>
+  </div>
+
   <div id="app-view" class="flex-1 hidden flex-col min-h-0 z-10">
     <header class="bg-emerald-800 text-white px-4 py-3 shadow-md flex justify-between items-center shrink-0">
       <div class="flex items-center gap-3">
@@ -183,27 +210,27 @@
           </div>
         </div>
 
-        <div class="flex bg-white p-1 rounded-xl border shadow-sm">
-          <button id="form-tab-milling" class="flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm">🌾 Wheat Milling Entry</button>
-          <button id="form-tab-sales" class="flex-1 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-all">💰 Direct Flour Cash Sale</button>
+        <div class="flex bg-white p-1 rounded-xl border shadow-sm font-urdu">
+          <button id="form-tab-milling" class="flex-1 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition-all shadow-sm ">🌾 Wheat Milling Entry گندم پسائی کا اندراج</button>
+          <button id="form-tab-sales" class="flex-1 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-all">💰 Direct Flour Cash Sale آٹے کی نقد فروخت</button>
         </div>
 
-        <div id="milling-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+        <div id="milling-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 font-urdu">
           <h4 class="font-black text-gray-800 mb-3 flex items-center gap-2 border-b pb-2 text-sm">🌾 Wheat Grinding Ledger Entry</h4>
           <div class="space-y-3.5">
             <div class="grid grid-cols-2 gap-2">
-              <input id="mill-cust-name" type="text" placeholder="Farmer Name" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
+              <input id="mill-cust-name" type="text" placeholder="Customer Name &nbsp; گاہک کانام" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
               <input id="mill-cust-phone" type="tel" placeholder="03001234567" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
             </div>
             <div class="grid grid-cols-3 gap-2">
-              <input id="mill-wheat-weight" type="number" placeholder="Wheat Weight (KG)" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 text-center font-bold">
+              <input id="mill-wheat-weight" type="number" placeholder="گندم کاوزن Wheat Weight (KG)" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 text-center font-bold">
               <input id="mill-advance-pickup" type="number" value="0" placeholder="Pickup" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 text-center font-bold">
               <input id="mill-flour-rate" type="number" value="120" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 text-center font-bold">
             </div>
             <div class="p-3 bg-slate-50 border rounded-xl flex items-center justify-between">
               <span class="text-xs font-bold text-gray-700">Payment Strategy Route</span>
               <select id="mill-fee-strategy" class="bg-white p-1.5 border rounded-lg text-xs font-bold">
-                <option value="deduct" selected>Deduct Flour (4kg/Mund)</option>
+                <option value="deduct" selected>Deduct Flour (4kg/Mund فی منِ)</option>
                 <option value="cash">Pay Cash Instead</option>
               </select>
             </div>
@@ -214,10 +241,17 @@
                 <span>Final Remaining Flour Balance:</span><span id="calc-final-balance">0.00 KG</span>
               </div>
             </div>
-            <button id="btn-submit-milling" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold text-xs shadow-md">💾 Save Milling Run</button>
+
+            <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl p-3 shadow-sm select-none">
+              <input type="checkbox" id="chk-whatsapp-milling" class="w-5 h-5 accent-emerald-700 cursor-pointer rounded" checked>
+              <label for="chk-whatsapp-milling" class="font-urdu text-xs font-bold text-emerald-900 cursor-pointer">
+                💬 واٹس ایپ پر تفصیلات بھیجیں؟ (Send WhatsApp Receipt)
+              </label>
+            </div>
+
+            <button id="btn-submit-milling" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold text-sm shadow-md font-urdu">💾 Save Milling Run گندم پسائی محفوظ کریں</button>
           </div>
         </div>
-
         <div id="sales-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hidden">
           <h4 class="font-black text-gray-800 mb-3 flex items-center gap-2 border-b pb-2 text-sm">💰 Direct Flour Cash Transaction</h4>
           <div class="space-y-3.5">
@@ -235,6 +269,13 @@
               <div class="flex justify-between border-t pt-1 font-black text-amber-800 text-sm">
                 <span>Total Due Bill Amount:</span><span id="calc-sale-bill">PKR 0</span>
               </div>
+            </div>
+
+            <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl p-3 shadow-sm select-none">
+              <input type="checkbox" id="chk-whatsapp-sale" class="w-5 h-5 accent-emerald-700 cursor-pointer rounded" checked>
+              <label for="chk-whatsapp-sale" class="font-urdu text-xs font-bold text-emerald-900 cursor-pointer">
+                💬 واٹس ایپ پر تفصیلات بھیجیں؟ (Send WhatsApp Receipt)
+              </label>
             </div>
 
             <button id="btn-submit-sale" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold text-xs shadow-md">💾 Record Cash Sale</button>
@@ -276,8 +317,7 @@
         <span>📋 Complete Invoice Details</span>
         <button id="btn-close-modal" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg text-xs font-bold">Close</button>
       </div>
-      <div id="modal-content-body" class="p-5 space-y-3 text-xs leading-relaxed overflow-y-auto flex-1">
-        </div>
+      <div id="modal-content-body" class="p-5 space-y-3 text-xs leading-relaxed overflow-y-auto flex-1"></div>
       <div class="bg-slate-50 p-3 border-t grid grid-cols-2 gap-2 shrink-0">
         <button id="btn-edit-record" class="bg-white border text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-all hover:bg-gray-100 shadow-sm">✏️ Edit Fields</button>
         <button id="btn-delete-record" class="bg-red-50 text-red-700 font-bold py-2.5 rounded-xl text-xs transition-all hover:bg-red-100">🗑️ Delete Record</button>
