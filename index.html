@@ -218,6 +218,10 @@
         <div id="milling-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 font-urdu">
           <h4 class="font-black text-gray-800 mb-3 flex items-center gap-2 border-b pb-2 text-sm">🌾 Wheat Grinding Ledger Entry</h4>
           <div class="space-y-3.5">
+            <div class="font-sans" style="display: none;">
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">📅 Custom Entry Date & Time</label>
+              <input id="mill-custom-datetime" type="datetime-local" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <input id="mill-cust-name" type="text" placeholder="Customer Name &nbsp; گاہک کانام" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
               <input id="mill-cust-phone" type="tel" placeholder="03001234567" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
@@ -252,9 +256,14 @@
             <button id="btn-submit-milling" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold text-sm shadow-md font-urdu">💾 Save Milling Run گندم پسائی محفوظ کریں</button>
           </div>
         </div>
+        
         <div id="sales-form-container" class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hidden">
           <h4 class="font-black text-gray-800 mb-3 flex items-center gap-2 border-b pb-2 text-sm">💰 Direct Flour Cash Transaction</h4>
           <div class="space-y-3.5">
+            <div style="display: none;">
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">📅 Custom Entry Date & Time</label>
+              <input id="sale-custom-datetime" type="datetime-local" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <input id="sale-cust-name" type="text" placeholder="Buyer Name" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
               <input id="sale-cust-phone" type="tel" placeholder="Mobile Number" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50">
@@ -295,6 +304,108 @@
       </section>
 
       <section id="tab-expenses" class="app-tab space-y-6 hidden">
+
+        <!-- USER OWN ENTRIES PANEL (visible to regular users only) -->
+        <div id="user-own-entries-panel" class="space-y-4 hidden">
+
+          <div class="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-3xl p-5 shadow-xl border border-emerald-900/40">
+            <h4 class="font-extrabold text-[10px] tracking-widest text-emerald-400 uppercase mb-3">My Personal Summary</h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">My Total Wheat</p>
+                <p id="user-own-total-wheat" class="text-base font-black text-emerald-400 mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">My Flour Distributed</p>
+                <p id="user-own-total-flour" class="text-base font-black text-white mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">My Mill Deductions</p>
+                <p id="user-own-total-deduction" class="text-base font-black text-amber-400 mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">My Cash Revenue</p>
+                <p id="user-own-total-cash" class="text-base font-black text-emerald-300 mt-0.5">PKR 0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 space-y-3">
+            <div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3">
+              <div>
+                <h4 class="font-black text-sm text-gray-800">📋 My Submitted Entries</h4>
+                <p class="text-[10px] text-gray-400 mt-0.5">All records you have submitted. Only you can see these.</p>
+              </div>
+              <div class="flex gap-2 items-center">
+                <input id="user-entries-search" type="text" placeholder="🔍 Search name / phone..." class="p-2 border rounded-xl text-xs bg-gray-50 focus:ring-2 focus:ring-emerald-500 outline-none w-44">
+                <select id="user-entries-filter-type" class="p-2 border rounded-xl text-xs bg-gray-50 font-bold focus:ring-2 focus:ring-emerald-500 outline-none">
+                  <option value="all">All Types</option>
+                  <option value="milling">Milling</option>
+                  <option value="sale">Sale</option>
+                </select>
+              </div>
+            </div>
+            <div id="user-entries-count" class="text-[10px] text-emerald-700 font-bold hidden"></div>
+            <div class="scroll-container overflow-x-auto">
+              <div id="user-entries-table-container">
+                <p class="text-center text-xs text-gray-400 py-6">Loading your entries...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-management-features" class="space-y-6 hidden">
+          
+          <div class="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-5 shadow-xl space-y-3 border border-emerald-900/40">
+            <h4 class="font-extrabold text-[10px] tracking-widest text-emerald-400 uppercase">Executive Stock & Cash Audits</h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">Total Milling Weight</p>
+                <p id="admin-total-wheat" class="text-base font-black text-emerald-400 mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">Total Flour Distributed</p>
+                <p id="admin-total-flour" class="text-base font-black text-white mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">Total Mill Deductions</p>
+                <p id="admin-total-deduction" class="text-base font-black text-amber-400 mt-0.5">0.00 KG</p>
+              </div>
+              <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p class="text-[9px] text-slate-400 font-bold uppercase">Direct Cash Revenue</p>
+                <p id="admin-total-cash" class="text-base font-black text-emerald-300 mt-0.5">PKR 0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 space-y-3">
+            <h4 class="font-black text-sm text-gray-800 flex items-center gap-2">🔍 Administrative Search Engine</h4>
+            <p class="text-[10px] text-gray-400 leading-tight">Filter down massive ledger logs by matching specific strings instantly.</p>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="admin-filter-search" type="text" placeholder="Search customer / phone..." class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 focus:ring-2 focus:ring-green-500 outline-none">
+              <select id="admin-filter-type" class="w-full p-2.5 border rounded-xl text-xs bg-gray-50 font-bold">
+                <option value="all">All Logs Matrix</option>
+                <option value="milling">Wheat Milling Runs</option>
+                <option value="sale">Direct Cash Sales</option>
+              </select>
+            </div>
+            <div id="admin-filter-results-count" class="text-[10px] text-green-700 font-bold pl-1 hidden"></div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 space-y-3">
+            <div class="flex justify-between items-center border-b pb-2">
+              <div>
+                <h4 class="font-black text-sm text-gray-800">👥 Worker Accountability Nodes</h4>
+                <p class="text-[10px] text-gray-400">Tap any profile to slide toggle full logs formatted details.</p>
+              </div>
+              <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-100">Live Grid</span>
+            </div>
+            
+            <div id="admin-workers-list" class="space-y-3"></div>
+          </div>
+
+        </div>
+
         <div id="super-admin-panel" class="bg-white rounded-3xl p-5 shadow-sm border border-red-100 hidden">
           <h4 class="font-black text-red-800 text-sm mb-2">🛡️ System Approvals Panel</h4>
           <div id="pending-users-list" class="space-y-2"></div>
