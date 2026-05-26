@@ -513,13 +513,19 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   const entryTimestamp = new Date().toISOString(); // Automatically uses current system time
   
   const receiptText = sendWhatsApp ? buildMillingReceiptText({
-    name, phone, wheat, pickup, strategy,
-    deduction, cash: cashVal, flour: finalFlour,
-    rate, operatorName: currentOperatorDisplayName
-  }) : null;
-  
-  try {
-    const btn = document.getElementById('btn-submit-milling');
+  name, phone, wheat, pickup, strategy,
+  deduction, cash: cashVal, flour: finalFlour,
+  rate, operatorName: currentOperatorDisplayName
+}) : null;
+
+// Open blank window NOW (synchronous, trusted click context) to avoid popup blocker
+let waWindow = null;
+if (sendWhatsApp && receiptText) {
+  waWindow = window.open('about:blank', '_blank');
+}
+
+try {
+  const btn = document.getElementById('btn-submit-milling');
     btn.disabled = true; btn.innerText = "Saving data run...";
     const status = await transmitDataToBackend({
       action: 'addTransaction',
@@ -541,10 +547,10 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
       await syncDataPipeline();
 
       if (sendWhatsApp && receiptText) {
-        dispatchWhatsAppReceipt(phone, receiptText);
-      } else {
-        alert("✅ Milling run updated successfully.");
-      }
+  dispatchWhatsAppReceipt(phone, receiptText);
+} else {
+  alert("✅ Milling run updated successfully.");
+}
     } else { alert("Error writing entry: " + status.error); }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
