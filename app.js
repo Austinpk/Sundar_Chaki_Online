@@ -594,10 +594,11 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   }
 });
 // DATA COMMIT: CASH FLOUR SALE
+// DATA COMMIT: CASH FLOUR SALE
 document.getElementById('btn-submit-sale').addEventListener('click', async () => {
   if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('sale-cust-name').value.trim();
-  const qty = parseFloat(saleQtyInput.value) || 0;
+  const qty = parseFloat(saleQtyInput.value) || 0; // <--- The 'qty' variable defined here
   const rate = parseFloat(saleRateInput.value) || 120;
   const phone = document.getElementById('sale-cust-phone').value.trim();
   const sendWhatsApp = document.getElementById('chk-whatsapp-sale').checked;
@@ -606,18 +607,14 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
   if (!phone || phone.length < 10) return alert("❌ Valid contact mobile line sequence required.");
   if (isNaN(qty) || qty <= 0) return alert("❌ Sale volume must exceed 0 KG.");
   const cashVal = parseFloat((qty * rate).toFixed(2));
-  const entryTimestamp = new Date().toISOString(); // Automatically uses current system time
+  const entryTimestamp = new Date().toISOString(); 
   
   const receiptText = sendWhatsApp ? buildSaleReceiptText({
     name, phone, flour: qty, rate, cash: cashVal,
     operatorName: currentOperatorDisplayName
   }) : null;
 
-  // Open blank window NOW (synchronous, trusted click) before any await — avoids popup blocker on Android WebView
-  let waWindow = null;
-  if (sendWhatsApp && receiptText) {
-    waWindow = window.open('about:blank', '_blank');
-  }
+  // REMOVED standard window.open('about:blank') to fix Android WebView freezes
 
   try {
     const btn = document.getElementById('btn-submit-sale');
@@ -640,21 +637,33 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
       document.getElementById('calc-sale-bill').textContent = "PKR 0";
       await syncDataPipeline();
 
-      if (waWindow && receiptText) {
+      // FIXED ANDROID APK DEEP LINK INTERCEPTOR
+      if (sendWhatsApp && receiptText) {
         let normalized = phone.replace(/\D/g, '');
         if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
         else if (!normalized.startsWith('92')) normalized = '92' + normalized;
-        waWindow.location.href = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+        
+        const finalWaUrl = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+        
+        // Checks if running inside an Android WebView container (APK build wrapper)
+        const isWebView = /WV|Android.*Version\/[0-9.]+/i.test(navigator.userAgent);
+        
+        if (isWebView) {
+          // Direct native redirect triggers WhatsApp app instantly without opening blank targets
+          window.location.href = finalWaUrl;
+        } else {
+          // Fallback opens clean tab on Laptop/Desktop browser clients
+          window.open(finalWaUrl, '_blank');
+        }
       } else {
-        if (waWindow) waWindow.close();
         alert("✅ Flour Cash Sale logged!");
       }
     } else {
-      if (waWindow) waWindow.close();
       alert("Error saving log: " + status.error);
     }
-  } catch (err) { alert(`Sync Failure: ${err.message}`); }
-  finally {
+  } catch (err) { 
+    alert(`Sync Failure: ${err.message}`); 
+  } finally {
     const btn = document.getElementById('btn-submit-sale');
     btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
   }
