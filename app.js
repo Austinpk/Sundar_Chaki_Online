@@ -544,45 +544,53 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
     waWindow = window.open('about:blank', '_blank');
   }
 
+  // REMOVE the early waWindow open block from here
+
   try {
-    const btn = document.getElementById('btn-submit-milling');
-    btn.disabled = true; btn.innerText = "Saving data run...";
+    const btn = document.getElementById('btn-submit-sale');
+    btn.disabled = true; btn.innerText = "Logging sale run...";
     const status = await transmitDataToBackend({
       action: 'addTransaction',
       payload: { 
         uid: currentUser.uid.trim(), 
         operatorName: currentOperatorDisplayName, 
-        type: 'milling', 
-        name, phone, wheat, pickup, strategy, deduction, cash: cashVal, flour: finalFlour, rate,
+        type: 'sale', 
+        name, flour: qty, rate, cash: cashVal, phone,
         date: entryTimestamp
       }
     });
 
     if (status.success) {
-      document.getElementById('mill-cust-name').value = '';
-      document.getElementById('mill-cust-phone').value = '';
-      millInputs.wheat.value = '';
-      millInputs.pickup.value = '0';
-      runLiveMillingCalculations();
+      document.getElementById('sale-cust-name').value = '';
+      saleQtyInput.value = '';
+      document.getElementById('sale-cust-phone').value = '';
+      document.getElementById('calc-sale-bill').textContent = "PKR 0";
       await syncDataPipeline();
 
-      if (waWindow && receiptText) {
+      // FIXED WHATSAPP DISPATCH LOGIC FOR MOBILE WEBVIEW
+      if (sendWhatsApp && receiptText) {
         let normalized = phone.replace(/\D/g, '');
         if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
         else if (!normalized.startsWith('92')) normalized = '92' + normalized;
-        waWindow.location.href = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+        
+        const finalWaUrl = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+        const isWebView = /WV|Android.*Version\/[0-9.]+/i.test(navigator.userAgent);
+        
+        if (isWebView) {
+          window.location.href = finalWaUrl;
+        } else {
+          window.open(finalWaUrl, '_blank');
+        }
       } else {
-        if (waWindow) waWindow.close();
-        alert("✅ Milling run updated successfully.");
+        alert("✅ Flour Cash Sale logged!");
       }
     } else {
-      if (waWindow) waWindow.close();
-      alert("Error writing entry: " + status.error);
+      alert("Error saving log: " + status.error);
     }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
-    const btn = document.getElementById('btn-submit-milling');
-    btn.disabled = false; btn.innerText = "💾 Save Milling Run گندم پسائی محفوظ کریں";
+    const btn = document.getElementById('btn-submit-sale');
+    btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
   }
 });
 // DATA COMMIT: CASH FLOUR SALE
