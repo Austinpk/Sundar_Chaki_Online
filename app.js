@@ -46,16 +46,32 @@ const tabs = {
   reports: document.getElementById('tab-reports'),
   expenses: document.getElementById('tab-expenses')
 };
-// Standard data post method
-async function transmitDataToBackend(actionPayload) {
-  const response = await fetch(GOOGLE_APPS_SCRIPT_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(actionPayload),
-    redirect: 'follow'
+// Standard data post method — uses XHR for full Android WebView compatibility
+function transmitDataToBackend(actionPayload) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', GOOGLE_APPS_SCRIPT_API_URL, true);
+    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    xhr.timeout = 30000;
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          reject(new Error('Failed to parse server response.'));
+        }
+      } else {
+        reject(new Error(`Network status fault: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = function () {
+      reject(new Error('Network request failed. Check internet connection.'));
+    };
+    xhr.ontimeout = function () {
+      reject(new Error('Request timed out. Please try again.'));
+    };
+    xhr.send(JSON.stringify(actionPayload));
   });
-  if (!response.ok) throw new Error(`Network status fault: ${response.status}`);
-  return await response.json();
 }
 // REAL-TIME PROGRESS TRANSMISSION CONTROLLER
 function transmitDataWithProgress(actionPayload, onProgressCallback) {
@@ -67,29 +83,33 @@ function transmitDataWithProgress(actionPayload, onProgressCallback) {
         fakeProgress = Math.min(fakeProgress + 12, 90);
         onProgressCallback(fakeProgress);
       }, 350);
-      const response = await fetch(GOOGLE_APPS_SCRIPT_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(actionPayload),
-        redirect: 'follow'
-      });
-
-      clearInterval(progressInterval);
-      progressInterval = null;
-
-      if (!response.ok) {
-        reject(new Error(`Server Status Error Node: ${response.status}`));
-        return;
-      }
-
-      onProgressCallback(100);
-
-      try {
-        const data = await response.json();
-        resolve(data);
-      } catch (parseErr) {
-        reject(new Error("Failed to clear server response text context."));
-      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', GOOGLE_APPS_SCRIPT_API_URL, true);
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+      xhr.timeout = 30000;
+      xhr.onload = function () {
+        clearInterval(progressInterval);
+        progressInterval = null;
+        onProgressCallback(100);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error("Failed to clear server response text context."));
+          }
+        } else {
+          reject(new Error(`Server Status Error Node: ${xhr.status}`));
+        }
+      };
+      xhr.onerror = function () {
+        if (progressInterval) clearInterval(progressInterval);
+        reject(new Error("Registration failed. Please check your internet connection and try again."));
+      };
+      xhr.ontimeout = function () {
+        if (progressInterval) clearInterval(progressInterval);
+        reject(new Error("Request timed out. Please try again."));
+      };
+      xhr.send(JSON.stringify(actionPayload));
     } catch (err) {
       if (progressInterval) clearInterval(progressInterval);
       reject(new Error("Registration failed. Please check your internet connection and try again."));
@@ -513,19 +533,19 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   const entryTimestamp = new Date().toISOString(); // Automatically uses current system time
   
   const receiptText = sendWhatsApp ? buildMillingReceiptText({
-  name, phone, wheat, pickup, strategy,
-  deduction, cash: cashVal, flour: finalFlour,
-  rate, operatorName: currentOperatorDisplayName
-}) : null;
+    name, phone, wheat, pickup, strategy,
+    deduction, cash: cashVal, flour: finalFlour,
+    rate, operatorName: currentOperatorDisplayName
+  }) : null;
 
-// Open blank window NOW (synchronous, trusted click context) to avoid popup blocker
-let waWindow = null;
-if (sendWhatsApp && receiptText) {
-  waWindow = window.open('about:blank', '_blank');
-}
+  // Open blank window NOW (synchronous, trusted click) before any await — avoids popup blocker on Android WebView
+  let waWindow = null;
+  if (sendWhatsApp && receiptText) {
+    waWindow = window.open('about:blank', '_blank');
+  }
 
-try {
-  const btn = document.getElementById('btn-submit-milling');
+  try {
+    const btn = document.getElementById('btn-submit-milling');
     btn.disabled = true; btn.innerText = "Saving data run...";
     const status = await transmitDataToBackend({
       action: 'addTransaction',
@@ -546,12 +566,19 @@ try {
       runLiveMillingCalculations();
       await syncDataPipeline();
 
-      if (sendWhatsApp && receiptText) {
-  dispatchWhatsAppReceipt(phone, receiptText);
-} else {
-  alert("✅ Milling run updated successfully.");
-}
-    } else { alert("Error writing entry: " + status.error); }
+      if (waWindow && receiptText) {
+        let normalized = phone.replace(/\D/g, '');
+        if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
+        else if (!normalized.startsWith('92')) normalized = '92' + normalized;
+        waWindow.location.href = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
+      } else {
+        if (waWindow) waWindow.close();
+        alert("✅ Milling run updated successfully.");
+      }
+    } else {
+      if (waWindow) waWindow.close();
+      alert("Error writing entry: " + status.error);
+    }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-milling');
@@ -577,7 +604,13 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
     name, phone, flour: qty, rate, cash: cashVal,
     operatorName: currentOperatorDisplayName
   }) : null;
-  
+
+  // Open blank window NOW (synchronous, trusted click) before any await — avoids popup blocker on Android WebView
+  let waWindow = null;
+  if (sendWhatsApp && receiptText) {
+    waWindow = window.open('about:blank', '_blank');
+  }
+
   try {
     const btn = document.getElementById('btn-submit-sale');
     btn.disabled = true; btn.innerText = "Logging sale run...";
@@ -599,12 +632,19 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
       document.getElementById('calc-sale-bill').textContent = "PKR 0";
       await syncDataPipeline();
 
-      if (sendWhatsApp && receiptText) {
-        dispatchWhatsAppReceipt(phone, receiptText);
+      if (waWindow && receiptText) {
+        let normalized = phone.replace(/\D/g, '');
+        if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
+        else if (!normalized.startsWith('92')) normalized = '92' + normalized;
+        waWindow.location.href = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
       } else {
+        if (waWindow) waWindow.close();
         alert("✅ Flour Cash Sale logged!");
       }
-    } else { alert("Error saving log: " + status.error); }
+    } else {
+      if (waWindow) waWindow.close();
+      alert("Error saving log: " + status.error);
+    }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
     const btn = document.getElementById('btn-submit-sale');
