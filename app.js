@@ -50,9 +50,9 @@ const tabs = {
 async function transmitDataToBackend(actionPayload) {
   const response = await fetch(GOOGLE_APPS_SCRIPT_API_URL, {
     method: 'POST',
-    mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(actionPayload)
+    body: JSON.stringify(actionPayload),
+    redirect: 'follow'
   });
   if (!response.ok) throw new Error(`Network status fault: ${response.status}`);
   return await response.json();
