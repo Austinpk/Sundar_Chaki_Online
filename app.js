@@ -513,6 +513,7 @@ function runLiveSaleCalculations() {
 }
 saleQtyInput.addEventListener('input', runLiveSaleCalculations);
 saleRateInput.addEventListener('input', runLiveSaleCalculations);
+
 // DATA COMMIT: MILLING RUN
 document.getElementById('btn-submit-milling').addEventListener('click', async () => {
   if (!currentUser) return alert("Session expired. Please log in again.");
@@ -530,7 +531,7 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
   const deduction = parseFloat((wheat * 0.10).toFixed(2));
   const cashVal = strategy === 'cash' ? parseFloat((deduction * rate).toFixed(2)) : 0;
   const finalFlour = parseFloat((strategy === 'deduct' ? (wheat - deduction - pickup) : (wheat - pickup)).toFixed(2));
-  const entryTimestamp = new Date().toISOString(); // Automatically uses current system time
+  const entryTimestamp = new Date().toISOString(); 
   
   const receiptText = sendWhatsApp ? buildMillingReceiptText({
     name, phone, wheat, pickup, strategy,
@@ -538,36 +539,28 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
     rate, operatorName: currentOperatorDisplayName
   }) : null;
 
-  // Open blank window NOW (synchronous, trusted click) before any await — avoids popup blocker on Android WebView
-  let waWindow = null;
-  if (sendWhatsApp && receiptText) {
-    waWindow = window.open('about:blank', '_blank');
-  }
-
-  // REMOVE the early waWindow open block from here
-
   try {
-    const btn = document.getElementById('btn-submit-sale');
-    btn.disabled = true; btn.innerText = "Logging sale run...";
+    const btn = document.getElementById('btn-submit-milling');
+    btn.disabled = true; btn.innerText = "Saving data run...";
     const status = await transmitDataToBackend({
       action: 'addTransaction',
       payload: { 
         uid: currentUser.uid.trim(), 
         operatorName: currentOperatorDisplayName, 
-        type: 'sale', 
-        name, flour: qty, rate, cash: cashVal, phone,
+        type: 'milling', 
+        name, phone, wheat, pickup, strategy, deduction, cash: cashVal, flour: finalFlour, rate,
         date: entryTimestamp
       }
     });
 
     if (status.success) {
-      document.getElementById('sale-cust-name').value = '';
-      saleQtyInput.value = '';
-      document.getElementById('sale-cust-phone').value = '';
-      document.getElementById('calc-sale-bill').textContent = "PKR 0";
+      document.getElementById('mill-cust-name').value = '';
+      document.getElementById('mill-cust-phone').value = '';
+      millInputs.wheat.value = '';
+      millInputs.pickup.value = '0';
+      runLiveMillingCalculations();
       await syncDataPipeline();
 
-      // FIXED WHATSAPP DISPATCH LOGIC FOR MOBILE WEBVIEW
       if (sendWhatsApp && receiptText) {
         let normalized = phone.replace(/\D/g, '');
         if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
@@ -582,23 +575,23 @@ document.getElementById('btn-submit-milling').addEventListener('click', async ()
           window.open(finalWaUrl, '_blank');
         }
       } else {
-        alert("✅ Flour Cash Sale logged!");
+        alert("✅ Milling run updated successfully.");
       }
     } else {
-      alert("Error saving log: " + status.error);
+      alert("Error writing entry: " + status.error);
     }
   } catch (err) { alert(`Sync Failure: ${err.message}`); }
   finally {
-    const btn = document.getElementById('btn-submit-sale');
-    btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
+    const btn = document.getElementById('btn-submit-milling');
+    btn.disabled = false; btn.innerText = "💾 Save Milling Run گندم پسائی محفوظ کریں";
   }
 });
-// DATA COMMIT: CASH FLOUR SALE
+
 // DATA COMMIT: CASH FLOUR SALE
 document.getElementById('btn-submit-sale').addEventListener('click', async () => {
   if (!currentUser) return alert("Session expired. Please log in again.");
   const name = document.getElementById('sale-cust-name').value.trim();
-  const qty = parseFloat(saleQtyInput.value) || 0; // <--- The 'qty' variable defined here
+  const qty = parseFloat(saleQtyInput.value) || 0;
   const rate = parseFloat(saleRateInput.value) || 120;
   const phone = document.getElementById('sale-cust-phone').value.trim();
   const sendWhatsApp = document.getElementById('chk-whatsapp-sale').checked;
@@ -614,8 +607,6 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
     operatorName: currentOperatorDisplayName
   }) : null;
 
-  // REMOVED standard window.open('about:blank') to fix Android WebView freezes
-
   try {
     const btn = document.getElementById('btn-submit-sale');
     btn.disabled = true; btn.innerText = "Logging sale run...";
@@ -637,22 +628,17 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
       document.getElementById('calc-sale-bill').textContent = "PKR 0";
       await syncDataPipeline();
 
-      // FIXED ANDROID APK DEEP LINK INTERCEPTOR
       if (sendWhatsApp && receiptText) {
         let normalized = phone.replace(/\D/g, '');
         if (normalized.startsWith('0')) normalized = '92' + normalized.slice(1);
         else if (!normalized.startsWith('92')) normalized = '92' + normalized;
         
         const finalWaUrl = `https://wa.me/${normalized}?text=${encodeURIComponent(receiptText)}`;
-        
-        // Checks if running inside an Android WebView container (APK build wrapper)
         const isWebView = /WV|Android.*Version\/[0-9.]+/i.test(navigator.userAgent);
         
         if (isWebView) {
-          // Direct native redirect triggers WhatsApp app instantly without opening blank targets
           window.location.href = finalWaUrl;
         } else {
-          // Fallback opens clean tab on Laptop/Desktop browser clients
           window.open(finalWaUrl, '_blank');
         }
       } else {
@@ -668,6 +654,7 @@ document.getElementById('btn-submit-sale').addEventListener('click', async () =>
     btn.disabled = false; btn.innerText = "💾 Record Cash Sale";
   }
 });
+
 // PUBLIC SEARCH PANEL ENGINE
 document.getElementById('btn-public-search').addEventListener('click', () => {
   const phone = document.getElementById('public-search-phone').value.trim();
@@ -715,7 +702,7 @@ function renderWorkerAnalyticsDashboard() {
   const searchQuery = document.getElementById('admin-filter-search').value.trim().toLowerCase();
   const filterType = document.getElementById('admin-filter-type').value;
   if (globalWorkersList.length === 0) {
-    workersListContainer.innerHTML = `<p class="text-[11px] text-gray-400 bg-gray-50 p-3 rounded-xl border text-center">No operators registered in the cloud ledger.</p>`;
+    workersListContainer.innerHTML = `<p class="text-center text-[11px] text-gray-400 bg-gray-50 p-3 rounded-xl border">No operators registered in the cloud ledger.</p>`;
     return;
   }
   // Calculate live overall analytics data matrix across the global system state
